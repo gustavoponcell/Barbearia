@@ -1,6 +1,6 @@
 # Evidências de Implementação — Sistema de Barbearia
 
-**Autor:** Equipe Técnica da Barbearia  
+**Autor:** Gustavo Rodrigues Poncell / Gabriel Luiz Fonsceca Brandao
 **Data:** 2025-10-20  
 **Stack alvo:** Java 17+ (compatível com Java 23) · Maven 3.9+
 
