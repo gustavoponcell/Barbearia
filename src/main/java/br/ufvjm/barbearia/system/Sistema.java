@@ -25,6 +25,51 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Núcleo orquestrador da aplicação de barbearia.
+ * <p>
+ * A classe centraliza as coleções in-memory e as principais operações de negócio
+ * relacionadas a clientes, usuários, catálogo de serviços e produtos, agenda,
+ * contas, vendas, despesas e recebimentos. Também encapsula regras que precisam
+ * de consistência global, como a manutenção do contador de ordens de serviço,
+ * a pilha (fila secundária) de agendamentos de espera e a geração de extratos.
+ * </p>
+ *
+ * <p>
+ * Principais regras de negócio gerenciadas aqui:
+ * </p>
+ * <ul>
+ *     <li>Garantir unicidade lógica dos registros por {@link UUID} e validar
+ *     transições (por exemplo, impedir edições de clientes com ID divergente).</li>
+ *     <li>Gerenciar a fila secundária (estrutura {@link Deque}) usada para realocar
+ *     atendimentos quando há cancelamentos.</li>
+ *     <li>Reforçar invariantes financeiros, como nunca permitir {@code null} em
+ *     totais, valores ou path de persistência.</li>
+ *     <li>Delegar a persistência para {@link JsonStorage}, mantendo a classe como
+ *     orquestradora, e não responsável pela serialização em si.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo típico de uso em uma interface CLI ou teste automatizado:
+ * </p>
+ * <pre>{@code
+ * Sistema sistema = new Sistema();
+ * sistema.cadastrarCliente(cliente);
+ * sistema.cadastrarServico(barba);
+ * sistema.realizarAgendamento(agendamento);
+ * sistema.saveAll(Path.of("data/sistema.json"));
+ *
+ * sistema.loadAll(Path.of("data/sistema.json"));
+ * List<Agendamento> doCliente = sistema.listarOrdensDeServicoDoCliente(cliente.getId());
+ * }</pre>
+ *
+ * <p>
+ * A classe foi pensada para ambientes desktop/offline, onde o snapshot completo
+ * pode ser serializado para JSON sob demanda (fechamento de caixa, backup manual
+ * etc.). Para integrações com UI, basta expor a instância única do sistema como
+ * um serviço singleton.
+ * </p>
+ */
 public class Sistema {
 
     // 🔹 Contadores

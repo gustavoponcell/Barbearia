@@ -12,6 +12,33 @@ import java.util.Objects;
 
 /**
  * Utilitário responsável por persistir e recuperar snapshots do sistema em arquivos JSON.
+ * <p>
+ * Atua como camada de infraestrutura do {@link br.ufvjm.barbearia.system.Sistema},
+ * garantindo que os dados sejam serializados usando {@link Gson} com formatação
+ * legível. A classe não conhece detalhes das listas internas; ela trabalha com
+ * {@link DataSnapshot} que funciona como DTO agregador.
+ * </p>
+ *
+ * <p>
+ * Regras e cuidados adotados:
+ * </p>
+ * <ul>
+ *     <li>Cria diretórios automaticamente antes de salvar.</li>
+ *     <li>Ao carregar, retorna snapshot vazio caso o arquivo não exista ou não
+ *     possua conteúdo válido.</li>
+ *     <li>Utiliza {@link StandardCharsets#UTF_8} para evitar problemas de
+ *     acentuação.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo integrado com o {@code Sistema}:
+ * </p>
+ * <pre>{@code
+ * Path arquivo = Path.of("data/sistema.json");
+ * sistema.saveAll(arquivo);      // delega para JsonStorage.save
+ * sistema.loadAll(arquivo);      // delega para JsonStorage.load
+ * }
+ * </pre>
  */
 public final class JsonStorage {
 

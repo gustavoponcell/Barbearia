@@ -4,6 +4,31 @@ import br.ufvjm.barbearia.value.Dinheiro;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Representa um serviço disponível no catálogo da barbearia.
+ * <p>
+ * Armazena nome, preço, duração estimada em minutos e se requer estação com
+ * lavagem, informação usada pelo {@link Agendamento} para reservar os recursos
+ * corretos.
+ * </p>
+ *
+ * <p>
+ * Regras principais:
+ * </p>
+ * <ul>
+ *     <li>Nome e preço são obrigatórios; a duração deve ser positiva.</li>
+ *     <li>{@link #isRequerLavagem()} orienta a alocação de {@link Estacao} com
+ *     lavatório quando necessário.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo:
+ * </p>
+ * <pre>{@code
+ * Servico corteComLavagem = new Servico(UUID.randomUUID(), "Corte + Lavagem",
+ *         Dinheiro.of("70.00"), 45, true);
+ * }</pre>
+ */
 public class Servico {
 
     private final UUID id;
