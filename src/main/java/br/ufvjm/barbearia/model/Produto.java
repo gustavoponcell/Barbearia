@@ -6,6 +6,33 @@ import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Modelo de produto comercializado ou consumido durante atendimentos.
+ * <p>
+ * Contém informações de estoque, preços e custo médio, permitindo validar
+ * movimentações e monitorar se o estoque está abaixo do mínimo definido.
+ * </p>
+ *
+ * <p>
+ * Regras de negócio aplicadas:
+ * </p>
+ * <ul>
+ *     <li>SKU e nome são obrigatórios e normalizados para evitar espaços extras.</li>
+ *     <li>Movimentações de entrada/saída respeitam unidade de medida, impedindo
+ *     estoque negativo.</li>
+ *     <li>Preço de venda e custo médio devem ser fornecidos como {@link Dinheiro}
+ *     para preservar arredondamentos consistentes.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo:
+ * </p>
+ * <pre>{@code
+ * Produto cera = new Produto(UUID.randomUUID(), "Cera modeladora", "CER-001",
+ *         Quantidade.unidade(10), Quantidade.unidade(2),
+ *         Dinheiro.of("35.00"), Dinheiro.of("18.50"));
+ * }</pre>
+ */
 public class Produto {
 
     private final UUID id;

@@ -7,6 +7,32 @@ import br.ufvjm.barbearia.value.Telefone;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Representa os usuários internos do sistema (administrador, atendente ou barbeiro).
+ * <p>
+ * Amplia {@link Pessoa} com credenciais, papel e estado ativo, sendo a base para
+ * o controle de permissões descrito nos casos de uso do projeto.
+ * </p>
+ *
+ * <p>
+ * Regras importantes:
+ * </p>
+ * <ul>
+ *     <li>{@link Papel} define o conjunto de operações disponíveis na UI.</li>
+ *     <li>O login é imutável após a criação, enquanto a senha pode ser alterada
+ *     por meio de {@link #alterarSenha(String)} com valor já criptografado/hash.</li>
+ *     <li>Usuários podem ser desativados temporariamente sem remoção de histórico
+ *     de vendas/atendimentos.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo:
+ * </p>
+ * <pre>{@code
+ * Usuario admin = new Usuario(UUID.randomUUID(), "Ana", endereco, telefone,
+ *         email, Papel.ADMINISTRADOR, "ana", senhaHash, true);
+ * }</pre>
+ */
 public class Usuario extends Pessoa {
 
     private Papel papel;

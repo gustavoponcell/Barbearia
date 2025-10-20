@@ -10,6 +10,31 @@ import java.util.UUID;
 
 /**
  * Representa a conta de um atendimento, reunindo serviços e produtos faturados.
+ * <p>
+ * Nasce vinculada a um {@link Agendamento} concluído e acumula itens adicionais
+ * (produtos vendidos/consumidos) antes de calcular o valor final para cobrança.
+ * </p>
+ *
+ * <p>
+ * Regras de negócio consideradas:
+ * </p>
+ * <ul>
+ *     <li>Descontos não podem ser negativos nem superiores ao total devido.</li>
+ *     <li>O total só pode ser consultado após o cálculo por
+ *     {@link #calcularTotal(Dinheiro)}.</li>
+ *     <li>A liquidação registra apenas a {@link FormaPagamento}, simulando a
+ *     integração com gateways ou caixa físico.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo:
+ * </p>
+ * <pre>{@code
+ * ContaAtendimento conta = new ContaAtendimento(UUID.randomUUID(), agendamento);
+ * conta.adicionarProdutoFaturado(itemCera);
+ * Dinheiro total = conta.calcularTotal(agendamento.totalServicos());
+ * conta.liquidar(FormaPagamento.DINHEIRO);
+ * }</pre>
  */
 public class ContaAtendimento {
 

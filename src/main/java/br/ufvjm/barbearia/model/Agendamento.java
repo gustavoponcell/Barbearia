@@ -11,6 +11,40 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * Representa uma Ordem de Serviço (OS) na agenda da barbearia.
+ * <p>
+ * A entidade vincula cliente, barbeiro (opcional na criação), estação, período e
+ * itens de serviço que serão executados, além de controlar o status do
+ * atendimento e o sinal recebido na reserva.
+ * </p>
+ *
+ * <p>
+ * Regras centrais:
+ * </p>
+ * <ul>
+ *     <li>Ao ser instanciado, o agendamento incrementa o contador global de OS do
+ *     {@link Sistema}.</li>
+ *     <li>O período {@link #inicio}/{@link #fim} deve ser válido e com fim posterior
+ *     ao início.</li>
+ *     <li>As transições de {@link StatusAtendimento} respeitam a sequência
+ *     {@code EM_ESPERA → EM_ATENDIMENTO → CONCLUIDO} com cancelamento permitido a
+ *     qualquer momento.</li>
+ *     <li>O total de serviços é calculado pela soma dos itens vinculados, e a
+ *     ausência de itens impede a faturação.</li>
+ * </ul>
+ *
+ * <p>
+ * Exemplo de uso:
+ * </p>
+ * <pre>{@code
+ * Agendamento ag = new Agendamento(UUID.randomUUID(), cliente, estacao,
+ *         inicio, fim, Dinheiro.of("50.00"));
+ * ag.adicionarItemServico(new ItemDeServico(servicoCorte, 1));
+ * ag.associarBarbeiro(usuarioBarbeiro);
+ * ag.alterarStatus(StatusAtendimento.EM_ATENDIMENTO);
+ * }</pre>
+ */
 public class Agendamento {
 
     private final UUID id;
