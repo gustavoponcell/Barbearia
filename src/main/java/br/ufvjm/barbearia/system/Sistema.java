@@ -88,6 +88,24 @@ public class Sistema {
         substituirUsuario(id, usuarioAtualizado);
     }
 
+    // 🔹 Catálogo de Serviços
+    public void cadastrarServico(Servico servico) {
+        servicos.add(Objects.requireNonNull(servico, "servico não pode ser nulo"));
+    }
+
+    public List<Servico> listarServicos() {
+        return List.copyOf(servicos);
+    }
+
+    // 🔹 Catálogo de Produtos
+    public void cadastrarProduto(Produto produto) {
+        produtos.add(Objects.requireNonNull(produto, "produto não pode ser nulo"));
+    }
+
+    public List<Produto> listarProdutos() {
+        return List.copyOf(produtos);
+    }
+
     // 🔹 Agendamentos
     public void realizarAgendamento(Agendamento ag) {
         agendamentos.add(Objects.requireNonNull(ag, "agendamento não pode ser nulo"));
