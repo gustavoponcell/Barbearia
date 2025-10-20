@@ -23,6 +23,7 @@ import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class Sistema {
 
@@ -102,6 +103,18 @@ public class Sistema {
             throw new NoSuchElementException("Não há agendamentos na fila secundária");
         }
         return filaSecundaria.pop();
+    }
+
+    public List<Agendamento> listarOrdensDeServicoDoCliente(UUID clienteId) {
+        Objects.requireNonNull(clienteId, "clienteId não pode ser nulo");
+        return agendamentos.stream()
+                .filter(a -> a.getCliente().getId().equals(clienteId))
+                .collect(Collectors.toList());
+    }
+
+    public void imprimirOrdensDeServicoDoCliente(UUID clienteId) {
+        listarOrdensDeServicoDoCliente(Objects.requireNonNull(clienteId, "clienteId não pode ser nulo"))
+                .forEach(a -> System.out.println(a.toString()));
     }
 
     // 🔹 Extratos
