@@ -58,8 +58,22 @@ public class Cliente extends Pessoa {
         this.ativo = ativo;
     }
 
-    static void incrementarTotalServicosProtegido() {
+    protected static void incrementarTotalServicosProtegido() {
         totalServicosProtegido++;
+    }
+
+    /**
+     * Ajusta o contador protegido de serviços para um valor específico.
+     * <p>
+     * Utilizado exclusivamente durante processos de reidratação do snapshot,
+     * garantindo que o contador acompanhe o estado real das entidades
+     * persistidas.
+     * </p>
+     *
+     * @param total valor calculado a partir dos serviços carregados.
+     */
+    static void redefinirTotalServicosProtegido(int total) {
+        totalServicosProtegido = Math.max(0, total);
     }
 
     /**
