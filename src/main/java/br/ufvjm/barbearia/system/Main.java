@@ -4,6 +4,7 @@ import br.ufvjm.barbearia.enums.CategoriaDespesa;
 import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.enums.Papel;
 import br.ufvjm.barbearia.enums.StatusAtendimento;
+import br.ufvjm.barbearia.exceptions.PermissaoNegadaException;
 import br.ufvjm.barbearia.model.Agendamento;
 import br.ufvjm.barbearia.model.CaixaDiario;
 import br.ufvjm.barbearia.model.Cliente;
@@ -207,7 +208,13 @@ public final class Main {
                 .orElseThrow();
         System.out.printf("Conta atualizada para cancelamento: total líquido=%s%n", contaCancelamento.getTotal());
 
-        CaixaDiario caixaAtualizado = sistema.obterCaixa(LocalDate.now());
+        try {
+            sistema.obterCaixa(colaborador, LocalDate.now());
+        } catch (PermissaoNegadaException e) {
+            System.out.printf("Acesso negado ao colaborador para consulta de caixa: %s%n", e.getMessage());
+        }
+
+        CaixaDiario caixaAtualizado = sistema.obterCaixa(administrador, LocalDate.now());
         System.out.printf("Caixa após retenção: entradas=%s | projeção do dia=%s%n",
                 caixaAtualizado.getEntradasAcumuladas(), caixaAtualizado.projetarBalanco());
 
@@ -254,7 +261,18 @@ public final class Main {
         System.out.printf("Despesa registrada por %s: %s - %s%n",
                 administrador.getNome(), despesa.getCategoria(), despesa.getValor());
 
-        sistema.saveAll(snapshotPath);
+        YearMonth competenciaAtual = YearMonth.from(LocalDate.now());
+
+        try {
+            sistema.emitirRelatorioFinanceiro(colaborador, competenciaAtual, brl);
+        } catch (PermissaoNegadaException e) {
+            System.out.printf("Colaborador não pode emitir relatório financeiro: %s%n", e.getMessage());
+        }
+
+        String relatorioFinanceiro = sistema.emitirRelatorioFinanceiro(administrador, competenciaAtual, brl);
+        System.out.println(relatorioFinanceiro);
+
+        sistema.saveAll(administrador, snapshotPath);
         System.out.printf("Snapshot JSON salvo em: %s%n", snapshotPath.toAbsolutePath());
 
         System.out.println();
@@ -264,7 +282,7 @@ public final class Main {
         System.out.printf("Total de serviços (protegido): %d%n", Cliente.getTotalServicosProtegido());
 
         LocalDate hoje = LocalDate.now();
-        List<Venda> vendasDoDia = sistema.listarVendas().stream()
+        List<Venda> vendasDoDia = sistema.listarVendas(administrador).stream()
                 .filter(v -> v.getDataHora().toLocalDate().equals(hoje))
                 .collect(Collectors.toCollection(ArrayList::new));
         Dinheiro totalVendasDoDia = vendasDoDia.stream()

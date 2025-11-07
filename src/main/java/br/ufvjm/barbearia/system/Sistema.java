@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
  * sistema.cadastrarCliente(cliente);
  * sistema.cadastrarServico(barba);
  * sistema.realizarAgendamento(agendamento);
- * sistema.saveAll(Path.of("data/sistema.json"));
+ * sistema.saveAll(usuarioAdmin, Path.of("data/sistema.json"));
  *
  * sistema.loadAll(Path.of("data/sistema.json"));
  * List<Agendamento> doCliente = sistema.listarOrdensDeServicoDoCliente(cliente.getId());
@@ -281,7 +281,8 @@ public class Sistema {
         vendas.add(Objects.requireNonNull(venda, "venda não pode ser nula"));
     }
 
-    public List<Venda> listarVendas() {
+    public List<Venda> listarVendas(Usuario solicitante) {
+        assertAdmin(solicitante);
         return List.copyOf(vendas);
     }
 
@@ -329,7 +330,7 @@ public class Sistema {
     public CaixaDiario abrirCaixa(LocalDate data, Dinheiro saldoAbertura) {
         Objects.requireNonNull(data, "data não pode ser nula");
         Objects.requireNonNull(saldoAbertura, "saldoAbertura não pode ser nulo");
-        if (localizarCaixa(data).isPresent()) {
+        if (localizarCaixaInterno(data).isPresent()) {
             throw new IllegalStateException("Já existe caixa para a data " + data);
         }
         CaixaDiario caixa = new CaixaDiario(data, saldoAbertura);
@@ -337,19 +338,21 @@ public class Sistema {
         return caixa;
     }
 
-    public List<CaixaDiario> listarCaixas() {
+    public List<CaixaDiario> listarCaixas(Usuario solicitante) {
+        assertAdmin(solicitante);
         return List.copyOf(caixas);
     }
 
-    public Optional<CaixaDiario> localizarCaixa(LocalDate data) {
+    public Optional<CaixaDiario> localizarCaixa(Usuario solicitante, LocalDate data) {
+        assertAdmin(solicitante);
         Objects.requireNonNull(data, "data não pode ser nula");
-        return caixas.stream()
-                .filter(c -> c.getData().equals(data))
-                .findFirst();
+        return localizarCaixaInterno(data);
     }
 
-    public CaixaDiario obterCaixa(LocalDate data) {
-        return localizarCaixa(data)
+    public CaixaDiario obterCaixa(Usuario solicitante, LocalDate data) {
+        assertAdmin(solicitante);
+        Objects.requireNonNull(data, "data não pode ser nula");
+        return localizarCaixaInterno(data)
                 .orElseThrow(() -> new IllegalArgumentException("Caixa não encontrado: " + data));
     }
 
@@ -469,7 +472,8 @@ public class Sistema {
         }
     }
 
-    public List<RecebimentoFornecedor> listarRecebimentos() {
+    public List<RecebimentoFornecedor> listarRecebimentos(Usuario solicitante) {
+        assertAdmin(solicitante);
         return List.copyOf(recebimentos);
     }
 
@@ -531,7 +535,8 @@ public class Sistema {
     }
 
     // 🔹 Persistência
-    public void saveAll(Path path) {
+    public void saveAll(Usuario solicitante, Path path) {
+        assertAdmin(solicitante);
         Objects.requireNonNull(path, "path não pode ser nulo");
         DataSnapshot snap = new DataSnapshot();
         snap.clientes = new ArrayList<>(clientes);
@@ -585,11 +590,18 @@ public class Sistema {
     private CaixaDiario obterOuCriarCaixa(LocalDate data, Dinheiro saldoAberturaPadrao) {
         Objects.requireNonNull(data, "data não pode ser nula");
         Dinheiro saldo = Objects.requireNonNull(saldoAberturaPadrao, "saldoAberturaPadrao não pode ser nulo");
-        return localizarCaixa(data).orElseGet(() -> {
+        return localizarCaixaInterno(data).orElseGet(() -> {
             CaixaDiario caixa = new CaixaDiario(data, saldo);
             caixas.add(caixa);
             return caixa;
         });
+    }
+
+    private Optional<CaixaDiario> localizarCaixaInterno(LocalDate data) {
+        Objects.requireNonNull(data, "data não pode ser nula");
+        return caixas.stream()
+                .filter(c -> c.getData().equals(data))
+                .findFirst();
     }
 
     private Agendamento localizarAgendamento(UUID id) {
