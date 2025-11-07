@@ -80,6 +80,7 @@ public class Sistema {
 
     // 🔹 Contadores
     private static int totalOrdensServico = 0;
+    private static int totalServicosCriados = 0;
 
     public static synchronized void incrementarTotalOS() {
         totalOrdensServico++;
@@ -87,6 +88,41 @@ public class Sistema {
 
     public static synchronized int getTotalOrdensServicoCriadas() {
         return totalOrdensServico;
+    }
+
+    /**
+     * Estratégia encapsulada para o contador de serviços criados.
+     * <p>
+     * Centraliza o incremento em {@link Sistema} garantindo controle único e
+     * diminuindo o risco de alterações indevidas em outros módulos.
+     * </p>
+     *
+     * @return total de instâncias de {@link br.ufvjm.barbearia.model.Servico}
+     *         criadas até o momento.
+     */
+    public static synchronized int getTotalServicosCriados() {
+        return totalServicosCriados;
+    }
+
+    private static synchronized void incrementarTotalServicos() {
+        totalServicosCriados++;
+    }
+
+    /**
+     * Canal controlado para notificações de criação de serviços.
+     * <p>
+     * Mantido como classe aninhada pública para permitir chamadas externas sem
+     * expor diretamente o método de incremento, preservando o encapsulamento.
+     * </p>
+     */
+    public static final class ServicoTracker {
+
+        private ServicoTracker() {
+        }
+
+        public static void registrarCriacaoServico() {
+            incrementarTotalServicos();
+        }
     }
 
     // 🔹 Estruturas principais

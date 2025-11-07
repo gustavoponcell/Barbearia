@@ -1,5 +1,6 @@
 package br.ufvjm.barbearia.model;
 
+import br.ufvjm.barbearia.system.Sistema;
 import br.ufvjm.barbearia.value.Dinheiro;
 import java.util.Objects;
 import java.util.UUID;
@@ -19,6 +20,9 @@ import java.util.UUID;
  *     <li>Nome e preço são obrigatórios; a duração deve ser positiva.</li>
  *     <li>{@link #isRequerLavagem()} orienta a alocação de {@link Estacao} com
  *     lavatório quando necessário.</li>
+ *     <li>Cada nova instância atualiza os contadores estáticos do sistema,
+ *     mantendo estatísticas tanto via encapsulamento ({@link Sistema}) quanto
+ *     via acesso protegido (em {@link Cliente}).</li>
  * </ul>
  *
  * <p>
@@ -46,6 +50,12 @@ public class Servico {
         }
         this.duracaoMin = duracaoMin;
         this.requerLavagem = requerLavagem;
+
+        // Estratégia encapsulada: delega ao núcleo para manter consistência global.
+        Sistema.ServicoTracker.registrarCriacaoServico();
+        // Estratégia com protected: acoplamento direto ao contador em Cliente.
+        // Qualquer classe no pacote pode alterar este valor, o que ilustra o risco.
+        Cliente.incrementarTotalServicosProtegido();
     }
 
     private String validarNome(String nome) {
