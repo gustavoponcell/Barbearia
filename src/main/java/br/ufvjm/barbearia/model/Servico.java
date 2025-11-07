@@ -96,4 +96,26 @@ public class Servico {
                 + ", requerLavagem=" + requerLavagem
                 + '}';
     }
+
+    /**
+     * Reidrata os contadores estáticos após carregamento do snapshot.
+     * <p>
+     * Percorre as instâncias fornecidas, recalculando o total real de serviços e
+     * delegando a atualização para as duas estratégias exigidas pelo projeto:
+     * encapsulada ({@link Sistema#setTotalServicos(int)}) e protegida
+     * ({@link Cliente#redefinirTotalServicosProtegido(int)}).
+     * </p>
+     *
+     * @param servicos instâncias carregadas do snapshot, podendo ser {@code null}.
+     */
+    public static void reidratarContadores(Iterable<? extends Servico> servicos) {
+        int total = 0;
+        if (servicos != null) {
+            for (Servico ignored : servicos) {
+                total++;
+            }
+        }
+        Sistema.setTotalServicos(total);
+        Cliente.redefinirTotalServicosProtegido(total);
+    }
 }

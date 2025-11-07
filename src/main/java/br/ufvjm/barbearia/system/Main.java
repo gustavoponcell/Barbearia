@@ -277,9 +277,15 @@ public final class Main {
 
         System.out.println();
         System.out.println(sistema);
-        System.out.printf("Total de OS criadas: %d%n", Sistema.getTotalOrdensServicoCriadas());
-        System.out.printf("Total de serviços (encapsulado): %d%n", Sistema.getTotalServicosCriados());
-        System.out.printf("Total de serviços (protegido): %d%n", Cliente.getTotalServicosProtegido());
+        int totalOsAntes = Sistema.getTotalOrdensServicoCriadas();
+        int totalServicosEncapsuladoAntes = Sistema.getTotalServicos();
+        int totalServicosProtegidoAntes = Cliente.getTotalServicosProtegido();
+        System.out.printf("Total de OS criadas: %d%n", totalOsAntes);
+        System.out.printf("Total de serviços (encapsulado): %d%n", totalServicosEncapsuladoAntes);
+        System.out.printf("Total de serviços (protegido): %d%n", totalServicosProtegidoAntes);
+        System.out.printf("Validação runtime -> serviços=%s | OS=%s%n",
+                totalServicosEncapsuladoAntes == 2 && totalServicosProtegidoAntes == 2 ? "OK" : "ERRO",
+                totalOsAntes == 2 ? "OK" : "ERRO");
 
         LocalDate hoje = LocalDate.now();
         List<Venda> vendasDoDia = sistema.listarVendas(administrador).stream()
@@ -290,6 +296,20 @@ public final class Main {
                 .reduce(Dinheiro.of(BigDecimal.ZERO, brl), Dinheiro::somar);
         System.out.printf("Relatório de vendas (%s): %d vendas totalizando %s%n",
                 hoje, vendasDoDia.size(), totalVendasDoDia);
+
+        Sistema sistemaReidratado = new Sistema();
+        // Simula reinício: zera contadores antes do carregamento do snapshot.
+        Servico.reidratarContadores(List.of());
+        Sistema.redefinirTotalOrdensServico(0);
+        sistemaReidratado.loadAll(snapshotPath);
+        int totalOsAposLoad = Sistema.getTotalOrdensServicoCriadas();
+        int totalServicosEncapsuladoAposLoad = Sistema.getTotalServicos();
+        int totalServicosProtegidoAposLoad = Cliente.getTotalServicosProtegido();
+        System.out.printf("Após load -> serviços(encapsulado)=%d | serviços(protegido)=%d | OS=%d%n",
+                totalServicosEncapsuladoAposLoad, totalServicosProtegidoAposLoad, totalOsAposLoad);
+        System.out.printf("Validação pós-load -> serviços=%s | OS=%s%n",
+                totalServicosEncapsuladoAposLoad == 2 && totalServicosProtegidoAposLoad == 2 ? "OK" : "ERRO",
+                totalOsAposLoad == 2 ? "OK" : "ERRO");
 
         System.out.println("\nFluxo finalizado sem exceções.");
     }

@@ -86,7 +86,7 @@ public class Sistema {
 
     // 🔹 Contadores
     private static int totalOrdensServico = 0;
-    private static int totalServicosCriados = 0;
+    private static int totalServicos = 0;
     private static final BigDecimal RETENCAO_CANCELAMENTO = new BigDecimal("0.35");
 
     public static synchronized void incrementarTotalOS() {
@@ -107,12 +107,36 @@ public class Sistema {
      * @return total de instâncias de {@link br.ufvjm.barbearia.model.Servico}
      *         criadas até o momento.
      */
-    public static synchronized int getTotalServicosCriados() {
-        return totalServicosCriados;
+    public static synchronized int getTotalServicos() {
+        return totalServicos;
+    }
+
+    /**
+     * Atualiza o contador encapsulado de serviços criados.
+     * <p>
+     * Este método deve ser usado apenas durante a reidratação do snapshot, onde
+     * o sistema precisa sincronizar os contadores com os dados persistidos.
+     * </p>
+     *
+     * @param total valor recalculado a partir dos serviços carregados.
+     */
+    public static synchronized void setTotalServicos(int total) {
+        totalServicos = Math.max(0, total);
     }
 
     private static synchronized void incrementarTotalServicos() {
-        totalServicosCriados++;
+        totalServicos++;
+    }
+
+    /**
+     * Ajusta o contador encapsulado de ordens de serviço.
+     * <p>
+     * Mantido com visibilidade de pacote para permitir cenários de testes e
+     * reidratação controlada dentro do módulo {@code system}.
+     * </p>
+     */
+    static synchronized void redefinirTotalOrdensServico(int total) {
+        totalOrdensServico = Math.max(0, total);
     }
 
     /**
@@ -576,6 +600,9 @@ public class Sistema {
             this.despesas = new ArrayList<>(Objects.requireNonNullElse(snap.despesas, List.of()));
             this.recebimentos = new ArrayList<>(Objects.requireNonNullElse(snap.recebimentos, List.of()));
             this.caixas = new ArrayList<>(Objects.requireNonNullElse(snap.caixas, List.of()));
+
+            Servico.reidratarContadores(this.servicos);
+            redefinirTotalOrdensServico(contarElementos(this.agendamentos));
         } catch (IOException e) {
             throw new UncheckedIOException("Falha ao carregar dados do sistema", e);
         }
@@ -622,6 +649,17 @@ public class Sistema {
             }
         }
         throw new IllegalArgumentException("Conta não encontrada: " + id);
+    }
+
+    private static int contarElementos(Iterable<?> elementos) {
+        if (elementos == null) {
+            return 0;
+        }
+        int total = 0;
+        for (Object ignored : elementos) {
+            total++;
+        }
+        return total;
     }
 
     private void substituirRecebimento(UUID id, RecebimentoFornecedor atualizado) {
