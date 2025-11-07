@@ -1,5 +1,7 @@
 package br.ufvjm.barbearia.system;
 
+import br.ufvjm.barbearia.enums.Papel;
+import br.ufvjm.barbearia.exceptions.PermissaoNegadaException;
 import br.ufvjm.barbearia.model.Agendamento;
 import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
@@ -12,11 +14,15 @@ import br.ufvjm.barbearia.model.Venda;
 import br.ufvjm.barbearia.persist.DataSnapshot;
 import br.ufvjm.barbearia.persist.ExtratoIO;
 import br.ufvjm.barbearia.persist.JsonStorage;
+import br.ufvjm.barbearia.value.Dinheiro;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.YearMonth;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.Deque;
 import java.util.List;
 import java.util.ListIterator;
@@ -120,17 +126,91 @@ public class Sistema {
     }
 
     // 🔹 CRUD de Colaboradores
-    public void cadastrarUsuario(Usuario u) {
-        usuarios.add(Objects.requireNonNull(u, "usuario não pode ser nulo"));
+    public void cadastrarUsuario(Usuario solicitante, Usuario novoUsuario) {
+        assertAdmin(solicitante);
+        usuarios.add(Objects.requireNonNull(novoUsuario, "usuario não pode ser nulo"));
     }
 
-    public void editarUsuario(UUID id, Usuario novo) {
+    public void editarUsuario(Usuario solicitante, UUID id, Usuario novo) {
+        assertAdmin(solicitante);
         Objects.requireNonNull(id, "id não pode ser nulo");
         Usuario usuarioAtualizado = Objects.requireNonNull(novo, "novo não pode ser nulo");
         if (!usuarioAtualizado.getId().equals(id)) {
             throw new IllegalArgumentException("ID do usuário não corresponde ao registro atualizado");
         }
         substituirUsuario(id, usuarioAtualizado);
+    }
+
+    public void removerUsuario(Usuario solicitante, UUID id) {
+        assertAdmin(solicitante);
+        Objects.requireNonNull(id, "id não pode ser nulo");
+        boolean removido = usuarios.removeIf(u -> u.getId().equals(id));
+        if (!removido) {
+            throw new IllegalArgumentException("Usuário não encontrado: " + id);
+        }
+    }
+
+    // 🔹 Despesas e balanço
+    public void registrarDespesa(Usuario solicitante, Despesa despesa) {
+        assertAdmin(solicitante);
+        despesas.add(Objects.requireNonNull(despesa, "despesa não pode ser nula"));
+    }
+
+    public List<Despesa> listarDespesas(Usuario solicitante) {
+        assertAdmin(solicitante);
+        return List.copyOf(despesas);
+    }
+
+    public void removerDespesa(Usuario solicitante, UUID id) {
+        assertAdmin(solicitante);
+        Objects.requireNonNull(id, "id não pode ser nulo");
+        boolean removido = despesas.removeIf(d -> d.getId().equals(id));
+        if (!removido) {
+            throw new IllegalArgumentException("Despesa não encontrada: " + id);
+        }
+    }
+
+    public Dinheiro calcularBalancoMensal(Usuario solicitante, YearMonth competencia, Currency moedaBase) {
+        assertAdmin(solicitante);
+        Objects.requireNonNull(competencia, "competencia não pode ser nula");
+        Currency moeda = Objects.requireNonNull(moedaBase, "moedaBase não pode ser nula");
+
+        Dinheiro totalReceitas = Dinheiro.of(BigDecimal.ZERO, moeda);
+        for (Venda venda : vendas) {
+            if (YearMonth.from(venda.getDataHora()).equals(competencia)) {
+                Dinheiro totalVenda;
+                try {
+                    totalVenda = venda.getTotal();
+                } catch (IllegalStateException e) {
+                    totalVenda = venda.calcularTotal();
+                }
+                validarMoeda(totalVenda, moeda);
+                totalReceitas = totalReceitas.somar(totalVenda);
+            }
+        }
+
+        Dinheiro totalDespesas = Dinheiro.of(BigDecimal.ZERO, moeda);
+        for (Despesa despesa : despesas) {
+            if (despesa.getCompetencia().equals(competencia)) {
+                validarMoeda(despesa.getValor(), moeda);
+                totalDespesas = totalDespesas.somar(despesa.getValor());
+            }
+        }
+
+        return totalReceitas.subtrair(totalDespesas);
+    }
+
+    // 🔹 Relatórios
+    public String emitirRelatorioFinanceiro(Usuario solicitante, YearMonth competencia, Currency moedaBase) {
+        Dinheiro balanco = calcularBalancoMensal(solicitante, competencia, moedaBase);
+        return "Relatório Financeiro " + competencia + "\nBalanço: " + balanco;
+    }
+
+    public String emitirRelatorioOperacional(Usuario solicitante) {
+        Objects.requireNonNull(solicitante, "usuario não pode ser nulo");
+        return "Relatório Operacional\nClientes: " + clientes.size()
+                + "\nUsuários: " + usuarios.size()
+                + "\nAgendamentos: " + agendamentos.size();
     }
 
     // 🔹 Catálogo de Serviços
@@ -272,5 +352,26 @@ public class Sistema {
             }
         }
         throw new IllegalArgumentException("Usuário não encontrado: " + id);
+    }
+
+    private void assertAdmin(Usuario usuario) {
+        Objects.requireNonNull(usuario, "usuario solicitante não pode ser nulo");
+        if (usuario.getPapel() != Papel.ADMIN) {
+            throw new PermissaoNegadaException("Operação permitida apenas para administradores");
+        }
+    }
+
+    private void assertColaboradorOuAdmin(Usuario usuario) {
+        Objects.requireNonNull(usuario, "usuario solicitante não pode ser nulo");
+        Papel papel = usuario.getPapel();
+        if (papel != Papel.ADMIN && papel != Papel.COLABORADOR) {
+            throw new PermissaoNegadaException("Operação permitida apenas para administradores ou colaboradores");
+        }
+    }
+
+    private void validarMoeda(Dinheiro valor, Currency moedaEsperada) {
+        if (!valor.getMoeda().equals(moedaEsperada)) {
+            throw new IllegalArgumentException("Moeda divergente do balanço informado");
+        }
     }
 }
