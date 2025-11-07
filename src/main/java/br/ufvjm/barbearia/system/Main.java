@@ -239,6 +239,17 @@ public final class Main {
         sistema.registrarVenda(colaborador, venda);
         sistema.gerarExtratoVenda(venda);
 
+        Venda vendaConsumidorFinal = new Venda(
+                UUID.randomUUID(),
+                null,
+                LocalDateTime.now(),
+                FormaPagamento.DINHEIRO
+        );
+        vendaConsumidorFinal.adicionarItem(new ItemVenda(balm, Quantidade.of(BigDecimal.ONE, "un"), balm.getPrecoVenda()));
+        vendaConsumidorFinal.calcularTotal();
+        sistema.registrarVenda(colaborador, vendaConsumidorFinal);
+        sistema.gerarExtratoVenda(vendaConsumidorFinal);
+
         Set<Path> extratosDepois = listarArquivos(extratosDir);
         extratosDepois.removeAll(extratosAntes);
         List<Path> extratosGerados = new ArrayList<>(extratosDepois);

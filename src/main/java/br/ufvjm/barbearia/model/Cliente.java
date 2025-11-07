@@ -4,6 +4,9 @@ import br.ufvjm.barbearia.value.CpfHash;
 import br.ufvjm.barbearia.value.Email;
 import br.ufvjm.barbearia.value.Endereco;
 import br.ufvjm.barbearia.value.Telefone;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -49,6 +52,7 @@ public class Cliente extends Pessoa {
     protected static int totalServicosProtegido;
 
     private final CpfHash cpf;
+    private final List<String> extratosGerados = new ArrayList<>();
     private boolean ativo;
 
     public Cliente(UUID id, String nome, Endereco endereco, Telefone telefone, Email email,
@@ -105,6 +109,15 @@ public class Cliente extends Pessoa {
         this.ativo = true;
     }
 
+    public void registrarExtrato(String referencia) {
+        Objects.requireNonNull(referencia, "referencia não pode ser nula");
+        extratosGerados.add(referencia);
+    }
+
+    public List<String> getExtratosGerados() {
+        return Collections.unmodifiableList(extratosGerados);
+    }
+
     public void atualizarContato(Endereco endereco, Telefone telefone, Email email) {
         setEndereco(Objects.requireNonNull(endereco, "endereco não pode ser nulo"));
         setTelefone(Objects.requireNonNull(telefone, "telefone não pode ser nulo"));
@@ -116,6 +129,7 @@ public class Cliente extends Pessoa {
         return "Cliente{"
                 + "cpf=" + cpf
                 + ", ativo=" + ativo
+                + ", extratosGerados=" + extratosGerados.size()
                 + ", totalVeiculosProtegido=" + totalVeiculosProtegido
                 + ", totalServicosProtegido=" + totalServicosProtegido
                 + ", pessoa=" + super.toString()
