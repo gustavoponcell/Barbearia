@@ -156,4 +156,9 @@ public final class Main {
             throw new IllegalStateException("Contador de OS inconsistente: " + Sistema.getTotalOrdensServicoCriadas());
         }
     }
+
+    @Override
+    public String toString() {
+        return "Main[roteiro demonstrativo do Sistema da barbearia]";
+    }
 }

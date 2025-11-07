@@ -16,6 +16,7 @@ import java.util.Objects;
 public final class ExtratoIO {
 
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final ExtratoIO DEBUG_VIEW = new ExtratoIO();
 
     private ExtratoIO() {
         // utilitário
@@ -35,5 +36,14 @@ public final class ExtratoIO {
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
             writer.write(extrato);
         }
+    }
+
+    public static String description() {
+        return DEBUG_VIEW.toString();
+    }
+
+    @Override
+    public String toString() {
+        return "ExtratoIO[utilitário para salvar extratos com timestamp yyyyMMddHHmmss]";
     }
 }

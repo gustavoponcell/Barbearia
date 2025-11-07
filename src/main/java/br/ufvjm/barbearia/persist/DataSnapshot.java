@@ -38,4 +38,24 @@ public class DataSnapshot {
         this.despesas = new ArrayList<>();
         this.recebimentos = new ArrayList<>();
     }
+
+    @Override
+    public String toString() {
+        return String.format(
+                "DataSnapshot[clientes=%d, usuarios=%d, servicos=%d, produtos=%d, agendamentos=%d, vendas=%d, contas=%d, despesas=%d, recebimentos=%d]",
+                sizeOf(clientes),
+                sizeOf(usuarios),
+                sizeOf(servicos),
+                sizeOf(produtos),
+                sizeOf(agendamentos),
+                sizeOf(vendas),
+                sizeOf(contas),
+                sizeOf(despesas),
+                sizeOf(recebimentos)
+        );
+    }
+
+    private static int sizeOf(List<?> list) {
+        return list != null ? list.size() : 0;
+    }
 }
