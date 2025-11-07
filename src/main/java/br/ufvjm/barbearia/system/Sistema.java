@@ -269,6 +269,16 @@ public class Sistema {
         return List.copyOf(produtos);
     }
 
+    // 🔹 Vendas
+    public void registrarVenda(Usuario solicitante, Venda venda) {
+        assertColaboradorOuAdmin(solicitante);
+        vendas.add(Objects.requireNonNull(venda, "venda não pode ser nula"));
+    }
+
+    public List<Venda> listarVendas() {
+        return List.copyOf(vendas);
+    }
+
     // 🔹 Agendamentos
     public Agendamento criarAgendamento(UUID id, Cliente cliente, Estacao estacao,
                                         LocalDateTime inicio, LocalDateTime fim, Dinheiro sinal) {
