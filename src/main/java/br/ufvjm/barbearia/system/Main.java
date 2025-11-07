@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.Currency;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -263,7 +264,17 @@ public final class Main {
         System.out.printf("Caixa após retenção: entradas=%s | projeção do dia=%s%n",
                 caixaAtualizado.getEntradasAcumuladas(), caixaAtualizado.projetarBalanco());
 
+        Optional<Agendamento> proximoAntesDoPop = sistema.inspecionarFilaSecundaria();
+        System.out.printf("Topo da fila secundária antes do pop: %s%n",
+                proximoAntesDoPop.map(Main::descricaoFilaSecundaria).orElse("(fila vazia)"));
+
         Agendamento recuperado = sistema.recuperarAgendamentoSecundario();
+        System.out.printf("Agendamento recuperado via pop: %s%n", descricaoFilaSecundaria(recuperado));
+
+        Optional<Agendamento> proximoDepoisDoPop = sistema.inspecionarFilaSecundaria();
+        System.out.printf("Topo da fila secundária após o pop: %s%n",
+                proximoDepoisDoPop.map(Main::descricaoFilaSecundaria).orElse("(fila vazia)"));
+
         sistema.realizarAgendamento(recuperado);
         recuperado.associarBarbeiro(barbeiro);
         recuperado.alterarStatus(StatusAtendimento.EM_ATENDIMENTO);
@@ -424,5 +435,15 @@ public final class Main {
         } catch (java.io.IOException e) {
             throw new UncheckedIOException("Falha ao listar arquivos em " + dir, e);
         }
+    }
+
+    private static String descricaoFilaSecundaria(Agendamento agendamento) {
+        if (agendamento == null) {
+            return "(fila vazia)";
+        }
+        String clienteNome = agendamento.getCliente() != null
+                ? agendamento.getCliente().getNome()
+                : "(sem cliente)";
+        return String.format("%s (%s)", agendamento.getId(), clienteNome);
     }
 }
