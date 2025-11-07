@@ -1,6 +1,7 @@
 package br.ufvjm.barbearia.persist;
 
 import br.ufvjm.barbearia.persist.adapters.DinheiroAdapter;
+import br.ufvjm.barbearia.persist.adapters.LocalDateAdapter;
 import br.ufvjm.barbearia.persist.adapters.LocalDateTimeAdapter;
 import br.ufvjm.barbearia.persist.adapters.YearMonthAdapter;
 import br.ufvjm.barbearia.value.Dinheiro;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.Objects;
@@ -58,6 +60,7 @@ public final class JsonStorage {
     private static Gson createGson() {
         GsonBuilder builder = new GsonBuilder()
                 .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+                .registerTypeAdapter(LocalDate.class, new LocalDateAdapter())
                 .registerTypeAdapter(YearMonth.class, new YearMonthAdapter())
                 .registerTypeAdapter(Dinheiro.class, new DinheiroAdapter())
                 .setPrettyPrinting();
@@ -97,6 +100,6 @@ public final class JsonStorage {
 
     @Override
     public String toString() {
-        return "JsonStorage[persistência JSON com Gson (adapters: LocalDateTime, YearMonth, Dinheiro)]";
+        return "JsonStorage[persistência JSON com Gson (adapters: LocalDateTime, LocalDate, YearMonth, Dinheiro)]";
     }
 }

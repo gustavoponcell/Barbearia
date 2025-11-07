@@ -3,6 +3,7 @@ package br.ufvjm.barbearia.system;
 import br.ufvjm.barbearia.enums.Papel;
 import br.ufvjm.barbearia.exceptions.PermissaoNegadaException;
 import br.ufvjm.barbearia.model.Agendamento;
+import br.ufvjm.barbearia.model.CaixaDiario;
 import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
 import br.ufvjm.barbearia.model.Despesa;
@@ -12,6 +13,7 @@ import br.ufvjm.barbearia.model.RecebimentoFornecedor;
 import br.ufvjm.barbearia.model.Servico;
 import br.ufvjm.barbearia.model.Usuario;
 import br.ufvjm.barbearia.model.Venda;
+import br.ufvjm.barbearia.model.ItemRecebimento;
 import br.ufvjm.barbearia.persist.DataSnapshot;
 import br.ufvjm.barbearia.persist.ExtratoIO;
 import br.ufvjm.barbearia.persist.JsonStorage;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayDeque;
@@ -30,6 +33,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -83,6 +87,7 @@ public class Sistema {
     // 🔹 Contadores
     private static int totalOrdensServico = 0;
     private static int totalServicosCriados = 0;
+    private static final BigDecimal RETENCAO_CANCELAMENTO = new BigDecimal("0.35");
 
     public static synchronized void incrementarTotalOS() {
         totalOrdensServico++;
@@ -137,6 +142,7 @@ public class Sistema {
     private List<ContaAtendimento> contas = new ArrayList<>();
     private List<Despesa> despesas = new ArrayList<>();
     private List<RecebimentoFornecedor> recebimentos = new ArrayList<>();
+    private List<CaixaDiario> caixas = new ArrayList<>();
 
     // 🔹 Pilha de atendimentos secundários
     private Deque<Agendamento> filaSecundaria = new ArrayDeque<>();
@@ -279,6 +285,82 @@ public class Sistema {
         return List.copyOf(vendas);
     }
 
+    // 🔹 Contas de Atendimento
+    public ContaAtendimento criarContaAtendimento(Agendamento agendamento) {
+        ContaAtendimento conta = new ContaAtendimento(UUID.randomUUID(),
+                Objects.requireNonNull(agendamento, "agendamento não pode ser nulo"));
+        contas.add(conta);
+        return conta;
+    }
+
+    public void registrarConta(ContaAtendimento conta) {
+        contas.add(Objects.requireNonNull(conta, "conta não pode ser nula"));
+    }
+
+    public void atualizarConta(UUID id, ContaAtendimento contaAtualizada) {
+        Objects.requireNonNull(id, "id não pode ser nulo");
+        ContaAtendimento atualizada = Objects.requireNonNull(contaAtualizada, "contaAtualizada não pode ser nula");
+        if (!atualizada.getId().equals(id)) {
+            throw new IllegalArgumentException("ID da conta não corresponde ao registro atualizado");
+        }
+        substituirConta(id, atualizada);
+    }
+
+    public void removerConta(UUID id) {
+        Objects.requireNonNull(id, "id não pode ser nulo");
+        boolean removida = contas.removeIf(c -> c.getId().equals(id));
+        if (!removida) {
+            throw new IllegalArgumentException("Conta não encontrada: " + id);
+        }
+    }
+
+    public List<ContaAtendimento> listarContas() {
+        return List.copyOf(contas);
+    }
+
+    public Optional<ContaAtendimento> buscarContaPorAgendamento(UUID agendamentoId) {
+        Objects.requireNonNull(agendamentoId, "agendamentoId não pode ser nulo");
+        return contas.stream()
+                .filter(c -> c.getAgendamento().getId().equals(agendamentoId))
+                .findFirst();
+    }
+
+    // 🔹 Caixa Diário
+    public CaixaDiario abrirCaixa(LocalDate data, Dinheiro saldoAbertura) {
+        Objects.requireNonNull(data, "data não pode ser nula");
+        Objects.requireNonNull(saldoAbertura, "saldoAbertura não pode ser nulo");
+        if (localizarCaixa(data).isPresent()) {
+            throw new IllegalStateException("Já existe caixa para a data " + data);
+        }
+        CaixaDiario caixa = new CaixaDiario(data, saldoAbertura);
+        caixas.add(caixa);
+        return caixa;
+    }
+
+    public List<CaixaDiario> listarCaixas() {
+        return List.copyOf(caixas);
+    }
+
+    public Optional<CaixaDiario> localizarCaixa(LocalDate data) {
+        Objects.requireNonNull(data, "data não pode ser nula");
+        return caixas.stream()
+                .filter(c -> c.getData().equals(data))
+                .findFirst();
+    }
+
+    public CaixaDiario obterCaixa(LocalDate data) {
+        return localizarCaixa(data)
+                .orElseThrow(() -> new IllegalArgumentException("Caixa não encontrado: " + data));
+    }
+
+    public void removerCaixa(LocalDate data) {
+        Objects.requireNonNull(data, "data não pode ser nula");
+        boolean removido = caixas.removeIf(c -> c.getData().equals(data));
+        if (!removido) {
+            throw new IllegalArgumentException("Caixa não encontrado: " + data);
+        }
+    }
+
     // 🔹 Agendamentos
     public Agendamento criarAgendamento(UUID id, Cliente cliente, Estacao estacao,
                                         LocalDateTime inicio, LocalDateTime fim, Dinheiro sinal) {
@@ -307,6 +389,30 @@ public class Sistema {
         return filaSecundaria.pop();
     }
 
+    public Agendamento.Cancelamento cancelarAgendamento(Usuario solicitante, UUID agendamentoId) {
+        assertColaboradorOuAdmin(solicitante);
+        Objects.requireNonNull(agendamentoId, "agendamentoId não pode ser nulo");
+        Agendamento agendamento = localizarAgendamento(agendamentoId);
+        Agendamento.Cancelamento cancelamento = agendamento.cancelar(RETENCAO_CANCELAMENTO);
+        ContaAtendimento conta = buscarContaPorAgendamento(agendamentoId)
+                .orElseGet(() -> criarContaAtendimento(agendamento));
+        conta.registrarRetencaoCancelamento(cancelamento);
+        conta.calcularTotal(agendamento.totalServicos());
+
+        Dinheiro valorRetencao = cancelamento.getValorRetencao();
+        CaixaDiario caixa = obterOuCriarCaixa(LocalDate.now(),
+                Dinheiro.of(BigDecimal.ZERO, valorRetencao.getMoeda()));
+        caixa.registrarEntrada(valorRetencao, "Retenção cancelamento OS " + agendamento.getId());
+        boolean contaAssociada = caixa.getContas().stream()
+                .anyMatch(c -> c.getId().equals(conta.getId()));
+        if (!contaAssociada) {
+            caixa.adicionarConta(conta);
+        }
+
+        gerarExtratoCancelamento(agendamento, cancelamento);
+        return cancelamento;
+    }
+
     public List<Agendamento> listarOrdensDeServicoDoCliente(UUID clienteId) {
         Objects.requireNonNull(clienteId, "clienteId não pode ser nulo");
         return agendamentos.stream()
@@ -317,6 +423,54 @@ public class Sistema {
     public void imprimirOrdensDeServicoDoCliente(UUID clienteId) {
         listarOrdensDeServicoDoCliente(Objects.requireNonNull(clienteId, "clienteId não pode ser nulo"))
                 .forEach(a -> System.out.println(a.toString()));
+    }
+
+    // 🔹 Recebimentos de Fornecedor
+    public void registrarRecebimentoFornecedor(Usuario solicitante, RecebimentoFornecedor recebimento) {
+        registrarRecebimentoFornecedor(solicitante, recebimento, null, null);
+    }
+
+    public void registrarRecebimentoFornecedor(Usuario solicitante, RecebimentoFornecedor recebimento,
+                                               Dinheiro pagamento, LocalDate dataPagamento) {
+        assertAdmin(solicitante);
+        RecebimentoFornecedor registro = Objects.requireNonNull(recebimento, "recebimento não pode ser nulo");
+        registro.calcularTotal();
+        for (ItemRecebimento item : registro.getItens()) {
+            Produto produto = item.getProduto();
+            produto.movimentarEntrada(item.getQuantidade());
+            produto.atualizarCustoMedio(item.getCustoUnitario());
+        }
+        if (pagamento != null) {
+            registro.registrarPagamento(pagamento);
+            LocalDate dataMovimento = dataPagamento != null ? dataPagamento : LocalDate.now();
+            CaixaDiario caixa = obterOuCriarCaixa(dataMovimento,
+                    Dinheiro.of(BigDecimal.ZERO, pagamento.getMoeda()));
+            caixa.registrarSaida(pagamento, "Pagamento fornecedor " + registro.getFornecedor());
+        }
+        recebimentos.add(registro);
+    }
+
+    public void atualizarRecebimentoFornecedor(Usuario solicitante, UUID id, RecebimentoFornecedor atualizado) {
+        assertAdmin(solicitante);
+        Objects.requireNonNull(id, "id não pode ser nulo");
+        RecebimentoFornecedor novo = Objects.requireNonNull(atualizado, "atualizado não pode ser nulo");
+        if (!novo.getId().equals(id)) {
+            throw new IllegalArgumentException("ID do recebimento não corresponde ao registro atualizado");
+        }
+        substituirRecebimento(id, novo);
+    }
+
+    public void removerRecebimentoFornecedor(Usuario solicitante, UUID id) {
+        assertAdmin(solicitante);
+        Objects.requireNonNull(id, "id não pode ser nulo");
+        boolean removido = recebimentos.removeIf(r -> r.getId().equals(id));
+        if (!removido) {
+            throw new IllegalArgumentException("Recebimento não encontrado: " + id);
+        }
+    }
+
+    public List<RecebimentoFornecedor> listarRecebimentos() {
+        return List.copyOf(recebimentos);
     }
 
     // 🔹 Extratos
@@ -355,6 +509,27 @@ public class Sistema {
         }
     }
 
+    public void gerarExtratoCancelamento(Agendamento agendamento, Agendamento.Cancelamento cancelamento) {
+        Objects.requireNonNull(agendamento, "agendamento não pode ser nulo");
+        Objects.requireNonNull(cancelamento, "cancelamento não pode ser nulo");
+        Cliente cliente = agendamento.getCliente();
+        BigDecimal percentual = cancelamento.getPercentualRetencao().multiply(BigDecimal.valueOf(100));
+        String extrato = "Extrato de Cancelamento\nCliente: " + cliente.getNome()
+                + "\nOrdem de Serviço: " + agendamento.getId()
+                + "\nTotal de Serviços: " + cancelamento.getTotalServicos()
+                + "\nRetenção (" + percentual.stripTrailingZeros().toPlainString() + "%): " + cancelamento.getValorRetencao()
+                + "\nValor a reembolsar: " + cancelamento.getValorReembolso();
+        if (Boolean.getBoolean("barbearia.debug")) {
+            System.out.printf("[DEBUG] %s gerando extrato de cancelamento para cliente %s%n",
+                    ExtratoIO.description(), cliente.getNome());
+        }
+        try {
+            ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Falha ao gerar extrato de cancelamento", e);
+        }
+    }
+
     // 🔹 Persistência
     public void saveAll(Path path) {
         Objects.requireNonNull(path, "path não pode ser nulo");
@@ -368,6 +543,7 @@ public class Sistema {
         snap.contas = new ArrayList<>(contas);
         snap.despesas = new ArrayList<>(despesas);
         snap.recebimentos = new ArrayList<>(recebimentos);
+        snap.caixas = new ArrayList<>(caixas);
         if (Boolean.getBoolean("barbearia.debug")) {
             System.out.printf("[DEBUG] %s pronto para salvar em %s via %s%n", snap, path, JsonStorage.description());
         }
@@ -394,6 +570,7 @@ public class Sistema {
             this.contas = new ArrayList<>(Objects.requireNonNullElse(snap.contas, List.of()));
             this.despesas = new ArrayList<>(Objects.requireNonNullElse(snap.despesas, List.of()));
             this.recebimentos = new ArrayList<>(Objects.requireNonNullElse(snap.recebimentos, List.of()));
+            this.caixas = new ArrayList<>(Objects.requireNonNullElse(snap.caixas, List.of()));
         } catch (IOException e) {
             throw new UncheckedIOException("Falha ao carregar dados do sistema", e);
         }
@@ -401,8 +578,49 @@ public class Sistema {
 
     @Override
     public String toString() {
-        return String.format("\uD83D\uDCCA Sistema Barbearia: %d clientes, %d usuários, %d OS, %d vendas",
-                clientes.size(), usuarios.size(), agendamentos.size(), vendas.size());
+        return String.format("\uD83D\uDCCA Sistema Barbearia: %d clientes, %d usuários, %d OS, %d vendas, %d caixas",
+                clientes.size(), usuarios.size(), agendamentos.size(), vendas.size(), caixas.size());
+    }
+
+    private CaixaDiario obterOuCriarCaixa(LocalDate data, Dinheiro saldoAberturaPadrao) {
+        Objects.requireNonNull(data, "data não pode ser nula");
+        Dinheiro saldo = Objects.requireNonNull(saldoAberturaPadrao, "saldoAberturaPadrao não pode ser nulo");
+        return localizarCaixa(data).orElseGet(() -> {
+            CaixaDiario caixa = new CaixaDiario(data, saldo);
+            caixas.add(caixa);
+            return caixa;
+        });
+    }
+
+    private Agendamento localizarAgendamento(UUID id) {
+        for (Agendamento agendamento : agendamentos) {
+            if (agendamento.getId().equals(id)) {
+                return agendamento;
+            }
+        }
+        throw new IllegalArgumentException("Agendamento não encontrado: " + id);
+    }
+
+    private void substituirConta(UUID id, ContaAtendimento contaAtualizada) {
+        for (ListIterator<ContaAtendimento> it = contas.listIterator(); it.hasNext(); ) {
+            ContaAtendimento atual = it.next();
+            if (atual.getId().equals(id)) {
+                it.set(contaAtualizada);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Conta não encontrada: " + id);
+    }
+
+    private void substituirRecebimento(UUID id, RecebimentoFornecedor atualizado) {
+        for (ListIterator<RecebimentoFornecedor> it = recebimentos.listIterator(); it.hasNext(); ) {
+            RecebimentoFornecedor atual = it.next();
+            if (atual.getId().equals(id)) {
+                it.set(atualizado);
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Recebimento não encontrado: " + id);
     }
 
     private void substituirCliente(UUID id, Cliente clienteAtualizado) {

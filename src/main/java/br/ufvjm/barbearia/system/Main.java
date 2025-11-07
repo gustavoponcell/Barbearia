@@ -5,7 +5,9 @@ import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.enums.Papel;
 import br.ufvjm.barbearia.enums.StatusAtendimento;
 import br.ufvjm.barbearia.model.Agendamento;
+import br.ufvjm.barbearia.model.CaixaDiario;
 import br.ufvjm.barbearia.model.Cliente;
+import br.ufvjm.barbearia.model.ContaAtendimento;
 import br.ufvjm.barbearia.model.Estacao;
 import br.ufvjm.barbearia.model.ItemDeServico;
 import br.ufvjm.barbearia.model.ItemVenda;
@@ -51,6 +53,10 @@ public final class Main {
         Path extratosDir = Path.of("data/extratos");
         Path snapshotPath = Path.of("data/snapshots/barbearia_snapshot.json");
         Currency brl = Currency.getInstance("BRL");
+        Set<Path> extratosAntes = listarArquivos(extratosDir);
+
+        CaixaDiario caixaHoje = sistema.abrirCaixa(LocalDate.now(), Dinheiro.of(BigDecimal.ZERO, brl));
+        System.out.printf("Caixa aberto para %s com saldo inicial %s%n", caixaHoje.getData(), caixaHoje.getSaldoAbertura());
 
         System.out.println("=== Demonstração completa do Sistema da Barbearia ===");
 
@@ -174,6 +180,9 @@ public final class Main {
         agendamentoPrincipal.adicionarItemServico(new ItemDeServico(barba, barba.getPreco(), barba.getDuracaoMin()));
         System.out.printf("Agendamento principal criado: %s%n", agendamentoPrincipal.getId());
 
+        ContaAtendimento contaPrincipal = sistema.criarContaAtendimento(agendamentoPrincipal);
+        System.out.printf("Conta vinculada aberta: %s%n", contaPrincipal.getId());
+
         Agendamento agendamentoFila = new Agendamento(
                 UUID.randomUUID(),
                 cliente,
@@ -186,12 +195,21 @@ public final class Main {
         sistema.adicionarAgendamentoSecundario(agendamentoFila);
         System.out.printf("Agendamento aguardando na pilha secundária: %s%n", agendamentoFila.getId());
 
-        Dinheiro totalPrincipal = agendamentoPrincipal.totalServicos();
-        Dinheiro retencao = totalPrincipal.multiplicar(new BigDecimal("0.35"));
-        Dinheiro reembolso = totalPrincipal.subtrair(retencao);
-        agendamentoPrincipal.alterarStatus(StatusAtendimento.CANCELADO);
-        System.out.printf("Cancelamento aplicado (35%% de retenção): total=%s | retenção=%s | reembolso=%s%n",
-                totalPrincipal, retencao, reembolso);
+        Agendamento.Cancelamento cancelamento = sistema.cancelarAgendamento(colaborador, agendamentoPrincipal.getId());
+        BigDecimal percentualRetencao = cancelamento.getPercentualRetencao().multiply(BigDecimal.valueOf(100));
+        System.out.printf("Cancelamento aplicado (retenção %s%%): total=%s | retenção=%s | reembolso=%s%n",
+                percentualRetencao.stripTrailingZeros().toPlainString(),
+                cancelamento.getTotalServicos(),
+                cancelamento.getValorRetencao(),
+                cancelamento.getValorReembolso());
+
+        ContaAtendimento contaCancelamento = sistema.buscarContaPorAgendamento(agendamentoPrincipal.getId())
+                .orElseThrow();
+        System.out.printf("Conta atualizada para cancelamento: total líquido=%s%n", contaCancelamento.getTotal());
+
+        CaixaDiario caixaAtualizado = sistema.obterCaixa(LocalDate.now());
+        System.out.printf("Caixa após retenção: entradas=%s | projeção do dia=%s%n",
+                caixaAtualizado.getEntradasAcumuladas(), caixaAtualizado.projetarBalanco());
 
         Agendamento recuperado = sistema.recuperarAgendamentoSecundario();
         sistema.realizarAgendamento(recuperado);
@@ -200,7 +218,6 @@ public final class Main {
         recuperado.alterarStatus(StatusAtendimento.CONCLUIDO);
         System.out.printf("Agendamento recuperado e concluído: %s%n", recuperado.getId());
 
-        Set<Path> extratosAntes = listarArquivos(extratosDir);
         sistema.gerarExtratoServico(recuperado);
 
         Venda venda = new Venda(

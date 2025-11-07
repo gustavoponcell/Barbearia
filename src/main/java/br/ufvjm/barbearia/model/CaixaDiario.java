@@ -3,6 +3,7 @@ package br.ufvjm.barbearia.model;
 import br.ufvjm.barbearia.value.Dinheiro;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,7 @@ public class CaixaDiario {
     private Dinheiro saldoFechamento;
     private final List<Venda> vendas;
     private final List<ContaAtendimento> contas;
+    private final List<MovimentoCaixa> movimentos;
 
     public CaixaDiario(LocalDate data, Dinheiro saldoAbertura) {
         this.data = Objects.requireNonNull(data, "data não pode ser nula");
@@ -25,6 +27,7 @@ public class CaixaDiario {
         this.saidas = valorZero();
         this.vendas = new ArrayList<>();
         this.contas = new ArrayList<>();
+        this.movimentos = new ArrayList<>();
     }
 
     public LocalDate getData() {
@@ -58,15 +61,23 @@ public class CaixaDiario {
         return Collections.unmodifiableList(contas);
     }
 
-    public void registrarEntrada(Dinheiro valor) {
+    public List<MovimentoCaixa> getMovimentos() {
+        return Collections.unmodifiableList(movimentos);
+    }
+
+    public void registrarEntrada(Dinheiro valor, String motivo) {
         validarValorNaoNegativo(valor);
+        String motivoValidado = validarMotivo(motivo);
         entradas = entradas.somar(valor);
+        registrarMovimento(MovimentoCaixa.entrada(valor, motivoValidado));
         saldoFechamento = null;
     }
 
-    public void registrarSaida(Dinheiro valor) {
+    public void registrarSaida(Dinheiro valor, String motivo) {
         validarValorNaoNegativo(valor);
+        String motivoValidado = validarMotivo(motivo);
         saidas = saidas.somar(valor);
+        registrarMovimento(MovimentoCaixa.saida(valor, motivoValidado));
         saldoFechamento = null;
     }
 
@@ -79,8 +90,12 @@ public class CaixaDiario {
     }
 
     public Dinheiro consolidar() {
-        saldoFechamento = saldoAbertura.somar(entradas).subtrair(saidas);
+        saldoFechamento = projetarBalanco();
         return saldoFechamento;
+    }
+
+    public Dinheiro projetarBalanco() {
+        return saldoAbertura.somar(entradas).subtrair(saidas);
     }
 
     @Override
@@ -93,6 +108,7 @@ public class CaixaDiario {
                 + ", saldoFechamento=" + saldoFechamento
                 + ", vendas=" + vendas
                 + ", contas=" + contas
+                + ", movimentos=" + movimentos
                 + '}';
     }
 
@@ -104,6 +120,76 @@ public class CaixaDiario {
         Objects.requireNonNull(valor, "valor não pode ser nulo");
         if (valor.getValor().signum() < 0) {
             throw new IllegalArgumentException("valor não pode ser negativo");
+        }
+    }
+
+    private String validarMotivo(String motivo) {
+        Objects.requireNonNull(motivo, "motivo não pode ser nulo");
+        String normalizado = motivo.trim();
+        if (normalizado.isEmpty()) {
+            throw new IllegalArgumentException("motivo não pode ser vazio");
+        }
+        return normalizado;
+    }
+
+    private void registrarMovimento(MovimentoCaixa movimento) {
+        movimentos.add(Objects.requireNonNull(movimento, "movimento não pode ser nulo"));
+    }
+
+    public static final class MovimentoCaixa {
+
+        public enum Tipo {
+            ENTRADA, SAIDA
+        }
+
+        private Tipo tipo;
+        private Dinheiro valor;
+        private String motivo;
+        private LocalDateTime dataHora;
+
+        private MovimentoCaixa() {
+            // construtor padrão para serialização
+        }
+
+        private MovimentoCaixa(Tipo tipo, Dinheiro valor, String motivo, LocalDateTime dataHora) {
+            this.tipo = Objects.requireNonNull(tipo, "tipo não pode ser nulo");
+            this.valor = Objects.requireNonNull(valor, "valor não pode ser nulo");
+            this.motivo = Objects.requireNonNull(motivo, "motivo não pode ser nulo");
+            this.dataHora = Objects.requireNonNull(dataHora, "dataHora não pode ser nula");
+        }
+
+        public static MovimentoCaixa entrada(Dinheiro valor, String motivo) {
+            return new MovimentoCaixa(Tipo.ENTRADA, valor, motivo, LocalDateTime.now());
+        }
+
+        public static MovimentoCaixa saida(Dinheiro valor, String motivo) {
+            return new MovimentoCaixa(Tipo.SAIDA, valor, motivo, LocalDateTime.now());
+        }
+
+        public Tipo getTipo() {
+            return tipo;
+        }
+
+        public Dinheiro getValor() {
+            return valor;
+        }
+
+        public String getMotivo() {
+            return motivo;
+        }
+
+        public LocalDateTime getDataHora() {
+            return dataHora;
+        }
+
+        @Override
+        public String toString() {
+            return "MovimentoCaixa{"
+                    + "tipo=" + tipo
+                    + ", valor=" + valor
+                    + ", motivo='" + motivo + '\''
+                    + ", dataHora=" + dataHora
+                    + '}';
         }
     }
 }

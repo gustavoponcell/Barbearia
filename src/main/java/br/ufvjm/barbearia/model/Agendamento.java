@@ -3,6 +3,7 @@ package br.ufvjm.barbearia.model;
 import br.ufvjm.barbearia.enums.StatusAtendimento;
 import br.ufvjm.barbearia.value.Dinheiro;
 import br.ufvjm.barbearia.value.Periodo;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -123,6 +124,22 @@ public class Agendamento {
         this.status = novoStatus;
     }
 
+    public Cancelamento cancelar(BigDecimal percentualRetencao) {
+        Objects.requireNonNull(percentualRetencao, "percentualRetencao não pode ser nulo");
+        if (percentualRetencao.compareTo(BigDecimal.ZERO) < 0
+                || percentualRetencao.compareTo(BigDecimal.ONE) > 0) {
+            throw new IllegalArgumentException("percentual de retenção deve estar entre 0 e 1");
+        }
+        if (status == StatusAtendimento.CANCELADO) {
+            throw new IllegalStateException("Agendamento já está cancelado");
+        }
+        Dinheiro totalServicos = totalServicos();
+        Dinheiro valorRetencao = totalServicos.multiplicar(percentualRetencao);
+        Dinheiro valorReembolso = totalServicos.subtrair(valorRetencao);
+        alterarStatus(StatusAtendimento.CANCELADO);
+        return new Cancelamento(percentualRetencao, totalServicos, valorRetencao, valorReembolso);
+    }
+
     private boolean transicaoValida(StatusAtendimento atual, StatusAtendimento novo) {
         if (novo == StatusAtendimento.CANCELADO) {
             return true;
@@ -167,5 +184,47 @@ public class Agendamento {
                 + ", status=" + status
                 + ", sinal=" + sinal
                 + '}';
+    }
+
+    public static final class Cancelamento {
+
+        private final BigDecimal percentualRetencao;
+        private final Dinheiro totalServicos;
+        private final Dinheiro valorRetencao;
+        private final Dinheiro valorReembolso;
+
+        private Cancelamento(BigDecimal percentualRetencao, Dinheiro totalServicos,
+                              Dinheiro valorRetencao, Dinheiro valorReembolso) {
+            this.percentualRetencao = percentualRetencao;
+            this.totalServicos = totalServicos;
+            this.valorRetencao = valorRetencao;
+            this.valorReembolso = valorReembolso;
+        }
+
+        public BigDecimal getPercentualRetencao() {
+            return percentualRetencao;
+        }
+
+        public Dinheiro getTotalServicos() {
+            return totalServicos;
+        }
+
+        public Dinheiro getValorRetencao() {
+            return valorRetencao;
+        }
+
+        public Dinheiro getValorReembolso() {
+            return valorReembolso;
+        }
+
+        @Override
+        public String toString() {
+            return "Cancelamento{"
+                    + "percentualRetencao=" + percentualRetencao
+                    + ", totalServicos=" + totalServicos
+                    + ", valorRetencao=" + valorRetencao
+                    + ", valorReembolso=" + valorReembolso
+                    + '}';
+        }
     }
 }
