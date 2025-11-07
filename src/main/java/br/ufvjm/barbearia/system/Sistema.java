@@ -1,5 +1,7 @@
 package br.ufvjm.barbearia.system;
 
+import br.ufvjm.barbearia.compare.AgendamentoPorInicio;
+import br.ufvjm.barbearia.compare.ClientePorNome;
 import br.ufvjm.barbearia.enums.Papel;
 import br.ufvjm.barbearia.exceptions.PermissaoNegadaException;
 import br.ufvjm.barbearia.model.Agendamento;
@@ -8,12 +10,12 @@ import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
 import br.ufvjm.barbearia.model.Despesa;
 import br.ufvjm.barbearia.model.Estacao;
+import br.ufvjm.barbearia.model.ItemRecebimento;
 import br.ufvjm.barbearia.model.Produto;
 import br.ufvjm.barbearia.model.RecebimentoFornecedor;
 import br.ufvjm.barbearia.model.Servico;
 import br.ufvjm.barbearia.model.Usuario;
 import br.ufvjm.barbearia.model.Venda;
-import br.ufvjm.barbearia.model.ItemRecebimento;
 import br.ufvjm.barbearia.persist.DataSnapshot;
 import br.ufvjm.barbearia.persist.ExtratoIO;
 import br.ufvjm.barbearia.persist.JsonStorage;
@@ -26,8 +28,10 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Currency;
 import java.util.Deque;
 import java.util.List;
@@ -89,6 +93,9 @@ public class Sistema {
     private static int totalOrdensServico = 0;
     private static int totalServicos = 0;
     private static final BigDecimal RETENCAO_CANCELAMENTO = new BigDecimal("0.35");
+    private static final DateTimeFormatter DATA_HORA_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final ClientePorNome DEFAULT_CLIENTE_COMPARATOR = new ClientePorNome();
+    private static final AgendamentoPorInicio DEFAULT_AGENDAMENTO_COMPARATOR = new AgendamentoPorInicio();
 
     public static synchronized void incrementarTotalOS() {
         totalOrdensServico++;
@@ -194,6 +201,19 @@ public class Sistema {
         }
     }
 
+    public List<Cliente> listarClientesOrdenados() {
+        return listarClientesOrdenados(DEFAULT_CLIENTE_COMPARATOR, 0, clientes.size());
+    }
+
+    public List<Cliente> listarClientesOrdenados(int offset, int limit) {
+        return listarClientesOrdenados(DEFAULT_CLIENTE_COMPARATOR, offset, limit);
+    }
+
+    public List<Cliente> listarClientesOrdenados(Comparator<Cliente> comparator, int offset, int limit) {
+        Comparator<Cliente> criterio = comparator != null ? comparator : DEFAULT_CLIENTE_COMPARATOR;
+        return ordenarERecortar(clientes, criterio, offset, limit);
+    }
+
     // 🔹 CRUD de Colaboradores
     public void cadastrarUsuario(Usuario solicitante, Usuario novoUsuario) {
         assertAdmin(solicitante);
@@ -276,10 +296,56 @@ public class Sistema {
     }
 
     public String emitirRelatorioOperacional(Usuario solicitante) {
+        return emitirRelatorioOperacional(solicitante,
+                DEFAULT_CLIENTE_COMPARATOR, 0, -1,
+                DEFAULT_AGENDAMENTO_COMPARATOR, 0, -1);
+    }
+
+    public String emitirRelatorioOperacional(Usuario solicitante,
+                                             Comparator<Cliente> clienteComparator, int clienteOffset, int clienteLimit,
+                                             Comparator<Agendamento> agendamentoComparator, int agendamentoOffset, int agendamentoLimit) {
         Objects.requireNonNull(solicitante, "usuario não pode ser nulo");
-        return "Relatório Operacional\nClientes: " + clientes.size()
-                + "\nUsuários: " + usuarios.size()
-                + "\nAgendamentos: " + agendamentos.size();
+
+        Comparator<Cliente> criterioClientes = clienteComparator != null ? clienteComparator : DEFAULT_CLIENTE_COMPARATOR;
+        Comparator<Agendamento> criterioAgendamentos = agendamentoComparator != null ? agendamentoComparator : DEFAULT_AGENDAMENTO_COMPARATOR;
+
+        int clienteOffsetNormalizado = normalizarOffset(clienteOffset);
+        int clienteLimiteNormalizado = normalizarLimite(clienteLimit, clientes.size(), clienteOffsetNormalizado);
+        int agendamentoOffsetNormalizado = normalizarOffset(agendamentoOffset);
+        int agendamentoLimiteNormalizado = normalizarLimite(agendamentoLimit, agendamentos.size(), agendamentoOffsetNormalizado);
+
+        List<Cliente> clientesOrdenados = listarClientesOrdenados(criterioClientes, clienteOffsetNormalizado, clienteLimiteNormalizado);
+        List<Agendamento> agendamentosOrdenados = listarAgendamentosOrdenados(criterioAgendamentos, agendamentoOffsetNormalizado, agendamentoLimiteNormalizado);
+
+        String clientesTexto = clientesOrdenados.isEmpty()
+                ? "  (sem resultados no intervalo solicitado)"
+                : clientesOrdenados.stream()
+                .map(c -> String.format("  - %s <%s>", c.getNome(), formatarEmail(c)))
+                .collect(Collectors.joining(System.lineSeparator()));
+
+        String agendamentosTexto = agendamentosOrdenados.isEmpty()
+                ? "  (sem resultados no intervalo solicitado)"
+                : agendamentosOrdenados.stream()
+                .map(a -> String.format("  - %s | %s | %s",
+                        a.getInicio() != null ? a.getInicio().format(DATA_HORA_FORMATTER) : "(sem início)",
+                        a.getCliente() != null ? a.getCliente().getNome() : "(sem cliente)",
+                        a.getStatus()))
+                .collect(Collectors.joining(System.lineSeparator()));
+
+        return new StringBuilder()
+                .append("Relatório Operacional").append(System.lineSeparator())
+                .append("Clientes cadastrados: ").append(clientes.size()).append(System.lineSeparator())
+                .append("Usuários cadastrados: ").append(usuarios.size()).append(System.lineSeparator())
+                .append("Agendamentos registrados: ").append(agendamentos.size()).append(System.lineSeparator())
+                .append("Clientes ordenados (offset ").append(clienteOffsetNormalizado)
+                .append(", limite ").append(formatarLimite(clienteLimit, clienteLimiteNormalizado)).append(") - exibindo ")
+                .append(clientesOrdenados.size()).append(" item(s):").append(System.lineSeparator())
+                .append(clientesTexto).append(System.lineSeparator())
+                .append("Agendamentos ordenados (offset ").append(agendamentoOffsetNormalizado)
+                .append(", limite ").append(formatarLimite(agendamentoLimit, agendamentoLimiteNormalizado)).append(") - exibindo ")
+                .append(agendamentosOrdenados.size()).append(" item(s):").append(System.lineSeparator())
+                .append(agendamentosTexto)
+                .toString();
     }
 
     // 🔹 Catálogo de Serviços
@@ -406,6 +472,19 @@ public class Sistema {
         incrementarTotalOS();
         String clienteNome = ag.getCliente() != null ? ag.getCliente().getNome() : "(sem cliente)";
         Log.info("Agendamento registrado: %s para %s", ag.getId(), clienteNome);
+    }
+
+    public List<Agendamento> listarAgendamentosOrdenados() {
+        return listarAgendamentosOrdenados(DEFAULT_AGENDAMENTO_COMPARATOR, 0, agendamentos.size());
+    }
+
+    public List<Agendamento> listarAgendamentosOrdenados(int offset, int limit) {
+        return listarAgendamentosOrdenados(DEFAULT_AGENDAMENTO_COMPARATOR, offset, limit);
+    }
+
+    public List<Agendamento> listarAgendamentosOrdenados(Comparator<Agendamento> comparator, int offset, int limit) {
+        Comparator<Agendamento> criterio = comparator != null ? comparator : DEFAULT_AGENDAMENTO_COMPARATOR;
+        return ordenarERecortar(agendamentos, criterio, offset, limit);
     }
 
     public void adicionarAgendamentoSecundario(Agendamento ag) {
@@ -675,6 +754,40 @@ public class Sistema {
             }
         }
         throw new IllegalArgumentException("Recebimento não encontrado: " + id);
+    }
+
+    private static String formatarEmail(Cliente cliente) {
+        return cliente.getEmail() != null ? cliente.getEmail().getValor() : "sem e-mail";
+    }
+
+    private static int normalizarOffset(int offset) {
+        return Math.max(0, offset);
+    }
+
+    private static int normalizarLimite(int limit, int tamanho, int offsetNormalizado) {
+        if (tamanho <= 0 || offsetNormalizado >= tamanho) {
+            return 0;
+        }
+        int maxItensDisponiveis = tamanho - offsetNormalizado;
+        if (limit <= 0) {
+            return maxItensDisponiveis;
+        }
+        return Math.min(limit, maxItensDisponiveis);
+    }
+
+    private static String formatarLimite(int limiteOriginal, int limiteNormalizado) {
+        return limiteOriginal <= 0 ? "todos" : Integer.toString(limiteNormalizado);
+    }
+
+    private static <T> List<T> ordenarERecortar(List<T> origem, Comparator<T> comparator, int offset, int limit) {
+        List<T> ordenada = new ArrayList<>(origem);
+        ordenada.sort(comparator);
+        int safeOffset = normalizarOffset(offset);
+        int safeLimit = normalizarLimite(limit, ordenada.size(), safeOffset);
+        if (safeLimit <= 0) {
+            return List.of();
+        }
+        return List.copyOf(ordenada.subList(safeOffset, safeOffset + safeLimit));
     }
 
     private void substituirCliente(UUID id, Cliente clienteAtualizado) {

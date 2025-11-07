@@ -1,5 +1,9 @@
 package br.ufvjm.barbearia.system;
 
+import br.ufvjm.barbearia.compare.AgendamentoPorClienteNome;
+import br.ufvjm.barbearia.compare.AgendamentoPorInicio;
+import br.ufvjm.barbearia.compare.ClientePorEmail;
+import br.ufvjm.barbearia.compare.ClientePorNome;
 import br.ufvjm.barbearia.enums.CategoriaDespesa;
 import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.enums.Papel;
@@ -9,14 +13,14 @@ import br.ufvjm.barbearia.model.Agendamento;
 import br.ufvjm.barbearia.model.CaixaDiario;
 import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
+import br.ufvjm.barbearia.model.Despesa;
 import br.ufvjm.barbearia.model.Estacao;
 import br.ufvjm.barbearia.model.ItemDeServico;
 import br.ufvjm.barbearia.model.ItemVenda;
-import br.ufvjm.barbearia.model.Despesa;
 import br.ufvjm.barbearia.model.Produto;
 import br.ufvjm.barbearia.model.Servico;
-import br.ufvjm.barbearia.model.Venda;
 import br.ufvjm.barbearia.model.Usuario;
+import br.ufvjm.barbearia.model.Venda;
 import br.ufvjm.barbearia.value.CpfHash;
 import br.ufvjm.barbearia.value.Dinheiro;
 import br.ufvjm.barbearia.value.Email;
@@ -30,6 +34,7 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Currency;
@@ -123,8 +128,28 @@ public final class Main {
                 CpfHash.fromMasked("123.456.789-09"),
                 true
         );
+        Cliente clienteAna = new Cliente(
+                UUID.randomUUID(),
+                "Ana Silveira",
+                enderecoBase,
+                Telefone.of("38 97777-1010"),
+                Email.of("ana.silveira@email.com"),
+                CpfHash.fromMasked("321.654.987-00"),
+                true
+        );
+        Cliente clienteBruno = new Cliente(
+                UUID.randomUUID(),
+                "Bruno Alencar",
+                enderecoBase,
+                Telefone.of("38 97666-2020"),
+                Email.of("bruno.alencar@email.com"),
+                CpfHash.fromMasked("987.654.321-00"),
+                true
+        );
         sistema.cadastrarCliente(cliente);
-        System.out.printf("Cliente cadastrado: %s%n", cliente.getNome());
+        sistema.cadastrarCliente(clienteAna);
+        sistema.cadastrarCliente(clienteBruno);
+        System.out.printf("Clientes cadastrados: %d%n", sistema.listarClientesOrdenados().size());
 
         Servico corte = new Servico(
                 UUID.randomUUID(),
@@ -196,6 +221,26 @@ public final class Main {
         sistema.adicionarAgendamentoSecundario(agendamentoFila);
         System.out.printf("Agendamento aguardando na pilha secundária: %s%n", agendamentoFila.getId());
 
+        Agendamento agendamentoAna = sistema.criarAgendamento(
+                UUID.randomUUID(),
+                clienteAna,
+                Estacao.ESTACOES[1],
+                agora.plusDays(1).withHour(9).withMinute(0),
+                agora.plusDays(1).withHour(9).withMinute(45),
+                Dinheiro.of(new BigDecimal("18"), brl)
+        );
+        agendamentoAna.adicionarItemServico(new ItemDeServico(corte, corte.getPreco(), corte.getDuracaoMin()));
+
+        Agendamento agendamentoBruno = sistema.criarAgendamento(
+                UUID.randomUUID(),
+                clienteBruno,
+                Estacao.ESTACOES[2],
+                agora.plusHours(4),
+                agora.plusHours(4).plusMinutes(30),
+                Dinheiro.of(new BigDecimal("12"), brl)
+        );
+        agendamentoBruno.adicionarItemServico(new ItemDeServico(barba, barba.getPreco(), barba.getDuracaoMin()));
+
         Agendamento.Cancelamento cancelamento = sistema.cancelarAgendamento(colaborador, agendamentoPrincipal.getId());
         BigDecimal percentualRetencao = cancelamento.getPercentualRetencao().multiply(BigDecimal.valueOf(100));
         System.out.printf("Cancelamento aplicado (retenção %s%%): total=%s | retenção=%s | reembolso=%s%n",
@@ -260,6 +305,43 @@ public final class Main {
             extratosGerados.forEach(path ->
                     System.out.printf("Extrato salvo em: %s%n", path.toAbsolutePath()));
         }
+
+        DateTimeFormatter dataHoraFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+        System.out.println();
+        System.out.println("Clientes (ordenados por nome, limite 2):");
+        sistema.listarClientesOrdenados(new ClientePorNome(), 0, 2)
+                .forEach(c -> System.out.printf("- %s <%s>%n", c.getNome(),
+                        c.getEmail() != null ? c.getEmail().getValor() : "sem e-mail"));
+
+        System.out.println();
+        System.out.println("Clientes (ordenados por e-mail, offset 1, limite 2):");
+        sistema.listarClientesOrdenados(new ClientePorEmail(), 1, 2)
+                .forEach(c -> System.out.printf("- %s <%s>%n", c.getNome(),
+                        c.getEmail() != null ? c.getEmail().getValor() : "sem e-mail"));
+
+        System.out.println();
+        System.out.println("Agendamentos (ordenados por início, limite 3):");
+        sistema.listarAgendamentosOrdenados(new AgendamentoPorInicio(), 0, 3)
+                .forEach(a -> System.out.printf("- %s | %s%n",
+                        a.getInicio() != null ? a.getInicio().format(dataHoraFormatter) : "(sem início)",
+                        a.getCliente() != null ? a.getCliente().getNome() : "(sem cliente)"));
+
+        System.out.println();
+        System.out.println("Agendamentos (ordenados por cliente, offset 1, limite 2):");
+        sistema.listarAgendamentosOrdenados(new AgendamentoPorClienteNome(), 1, 2)
+                .forEach(a -> System.out.printf("- %s | %s%n",
+                        a.getCliente() != null ? a.getCliente().getNome() : "(sem cliente)",
+                        a.getInicio() != null ? a.getInicio().format(dataHoraFormatter) : "(sem início)"));
+
+        System.out.println();
+        System.out.println(sistema.emitirRelatorioOperacional(administrador,
+                new ClientePorNome(), 0, 2,
+                new AgendamentoPorInicio(), 0, 2));
+
+        System.out.println();
+        System.out.println(sistema.emitirRelatorioOperacional(administrador,
+                new ClientePorEmail(), 1, 2,
+                new AgendamentoPorClienteNome(), 0, 3));
 
         Despesa despesa = new Despesa(
                 UUID.randomUUID(),
