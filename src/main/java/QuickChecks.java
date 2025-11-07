@@ -6,4 +6,9 @@ public class QuickChecks {
         assert s.getTotalOrdensServicoCriadas() >= 0;
         System.out.println("✅ Testes básicos OK");
     }
+
+    @Override
+    public String toString() {
+        return "QuickChecks[utilitário de smoke tests do Sistema]";
+    }
 }

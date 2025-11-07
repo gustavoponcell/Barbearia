@@ -316,6 +316,10 @@ public class Sistema {
         String extrato = "Extrato de Serviço\nCliente: " + ag.getCliente().getNome()
                 + "\nBarbeiro: " + nomeBarbeiro
                 + "\nTotal: " + ag.totalServicos();
+        if (Boolean.getBoolean("barbearia.debug")) {
+            System.out.printf("[DEBUG] %s gerando extrato de serviço para cliente %s%n",
+                    ExtratoIO.description(), ag.getCliente().getNome());
+        }
         try {
             ExtratoIO.saveExtrato(ag.getCliente(), extrato, Path.of("data/extratos"));
         } catch (IOException e) {
@@ -330,6 +334,10 @@ public class Sistema {
         String extrato = "Extrato de Venda\nCliente: "
                 + nomeCliente
                 + "\nTotal: " + v.getTotal();
+        if (Boolean.getBoolean("barbearia.debug")) {
+            System.out.printf("[DEBUG] %s gerando extrato de venda para cliente %s%n",
+                    ExtratoIO.description(), nomeCliente);
+        }
         try {
             ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
         } catch (IOException e) {
@@ -350,6 +358,9 @@ public class Sistema {
         snap.contas = new ArrayList<>(contas);
         snap.despesas = new ArrayList<>(despesas);
         snap.recebimentos = new ArrayList<>(recebimentos);
+        if (Boolean.getBoolean("barbearia.debug")) {
+            System.out.printf("[DEBUG] %s pronto para salvar em %s via %s%n", snap, path, JsonStorage.description());
+        }
         try {
             JsonStorage.save(snap, path);
         } catch (IOException e) {
@@ -361,6 +372,9 @@ public class Sistema {
         Objects.requireNonNull(path, "path não pode ser nulo");
         try {
             DataSnapshot snap = JsonStorage.load(path);
+            if (Boolean.getBoolean("barbearia.debug")) {
+                System.out.printf("[DEBUG] Snapshot carregado de %s usando %s: %s%n", path, JsonStorage.description(), snap);
+            }
             this.clientes = new ArrayList<>(Objects.requireNonNullElse(snap.clientes, List.of()));
             this.usuarios = new ArrayList<>(Objects.requireNonNullElse(snap.usuarios, List.of()));
             this.servicos = new ArrayList<>(Objects.requireNonNullElse(snap.servicos, List.of()));

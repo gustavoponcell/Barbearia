@@ -49,6 +49,7 @@ import java.util.Objects;
 public final class JsonStorage {
 
     private static final Gson GSON = createGson();
+    private static final JsonStorage DEBUG_VIEW = new JsonStorage();
 
     private JsonStorage() {
         // utilitário
@@ -88,5 +89,14 @@ public final class JsonStorage {
             DataSnapshot snapshot = GSON.fromJson(reader, DataSnapshot.class);
             return snapshot != null ? snapshot : new DataSnapshot();
         }
+    }
+
+    public static String description() {
+        return DEBUG_VIEW.toString();
+    }
+
+    @Override
+    public String toString() {
+        return "JsonStorage[persistência JSON com Gson (adapters: LocalDateTime, YearMonth, Dinheiro)]";
     }
 }
