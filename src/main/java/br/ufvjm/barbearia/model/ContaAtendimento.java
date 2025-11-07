@@ -2,6 +2,7 @@ package br.ufvjm.barbearia.model;
 
 import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.value.Dinheiro;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,9 +42,13 @@ public class ContaAtendimento {
     private final UUID id;
     private final Agendamento agendamento;
     private final List<ItemContaProduto> produtosFaturados;
+    private final List<ItemDeServico> servicosAdicionais;
+    private final List<AjusteConta> ajustes;
     private Dinheiro desconto;
     private Dinheiro total;
     private FormaPagamento formaPagamento;
+    private CancelamentoRegistro cancelamentoRegistro;
+    private boolean fechada;
 
     public ContaAtendimento(UUID id, Agendamento agendamento) {
         this(id, agendamento, null);
@@ -57,6 +62,8 @@ public class ContaAtendimento {
         }
         this.desconto = desconto;
         this.produtosFaturados = new ArrayList<>();
+        this.servicosAdicionais = new ArrayList<>();
+        this.ajustes = new ArrayList<>();
     }
 
     public UUID getId() {
@@ -102,11 +109,61 @@ public class ContaAtendimento {
         total = null;
     }
 
+    public void adicionarServicoFaturado(ItemDeServico item) {
+        servicosAdicionais.add(Objects.requireNonNull(item, "item não pode ser nulo"));
+        total = null;
+    }
+
+    public List<ItemDeServico> getServicosAdicionais() {
+        return Collections.unmodifiableList(servicosAdicionais);
+    }
+
+    public List<AjusteConta> getAjustes() {
+        return Collections.unmodifiableList(ajustes);
+    }
+
+    public CancelamentoRegistro getCancelamentoRegistro() {
+        return cancelamentoRegistro;
+    }
+
+    public void registrarAjuste(AjusteConta ajuste) {
+        ajustes.add(Objects.requireNonNull(ajuste, "ajuste não pode ser nulo"));
+        total = null;
+    }
+
+    public void registrarRetencaoCancelamento(Agendamento.Cancelamento cancelamento) {
+        Objects.requireNonNull(cancelamento, "cancelamento não pode ser nulo");
+        this.cancelamentoRegistro = new CancelamentoRegistro(
+                cancelamento.getPercentualRetencao(),
+                cancelamento.getValorRetencao(),
+                cancelamento.getValorReembolso(),
+                cancelamento.getTotalServicos()
+        );
+        ajustes.add(AjusteConta.credito(
+                String.format("Retenção %s%% sobre cancelamento", cancelamento.getPercentualRetencao()
+                        .multiply(BigDecimal.valueOf(100))
+                        .stripTrailingZeros()
+                        .toPlainString()),
+                cancelamento.getValorRetencao()
+        ));
+        total = null;
+    }
+
     public Dinheiro calcularTotal(Dinheiro totalServicos) {
         Objects.requireNonNull(totalServicos, "totalServicos não pode ser nulo");
-        Dinheiro acumulado = totalServicos;
+        Dinheiro acumulado = baseParaCalculo(totalServicos);
+        for (ItemDeServico servico : servicosAdicionais) {
+            acumulado = acumulado.somar(servico.subtotal());
+        }
         for (ItemContaProduto item : produtosFaturados) {
             acumulado = acumulado.somar(item.subtotal());
+        }
+        for (AjusteConta ajuste : ajustes) {
+            if (ajuste.getTipo() == AjusteConta.Tipo.CREDITO) {
+                acumulado = acumulado.somar(ajuste.getValor());
+            } else {
+                acumulado = acumulado.subtrair(ajuste.getValor());
+            }
         }
         if (desconto != null) {
             acumulado = acumulado.subtrair(desconto);
@@ -118,6 +175,10 @@ public class ContaAtendimento {
         return acumulado;
     }
 
+    public Dinheiro calcularTotal() {
+        return calcularTotal(agendamento.totalServicos());
+    }
+
     public void liquidar(FormaPagamento formaPagamento) {
         Objects.requireNonNull(formaPagamento, "formaPagamento não pode ser nula");
         if (total == null) {
@@ -127,15 +188,146 @@ public class ContaAtendimento {
         this.formaPagamento = formaPagamento;
     }
 
+    public void fecharConta(FormaPagamento formaPagamento) {
+        liquidar(formaPagamento);
+        this.fechada = true;
+    }
+
+    public boolean isFechada() {
+        return fechada;
+    }
+
     @Override
     public String toString() {
         return "ContaAtendimento{"
                 + "id=" + id
                 + ", agendamento=" + agendamento
                 + ", produtosFaturados=" + produtosFaturados
+                + ", servicosAdicionais=" + servicosAdicionais
+                + ", ajustes=" + ajustes
                 + ", desconto=" + desconto
                 + ", total=" + total
                 + ", formaPagamento=" + formaPagamento
+                + ", cancelamentoRegistro=" + cancelamentoRegistro
+                + ", fechada=" + fechada
                 + '}';
+    }
+
+    private Dinheiro baseParaCalculo(Dinheiro totalServicos) {
+        if (cancelamentoRegistro != null) {
+            return Dinheiro.of(BigDecimal.ZERO, totalServicos.getMoeda());
+        }
+        return totalServicos;
+    }
+
+    /**
+     * Representa ajustes manuais (créditos e débitos) aplicados à conta.
+     */
+    public static final class AjusteConta {
+
+        public enum Tipo {
+            CREDITO, DEBITO
+        }
+
+        private Tipo tipo;
+        private String descricao;
+        private Dinheiro valor;
+
+        private AjusteConta() {
+            // construtor para serialização
+        }
+
+        private AjusteConta(Tipo tipo, String descricao, Dinheiro valor) {
+            this.tipo = Objects.requireNonNull(tipo, "tipo não pode ser nulo");
+            this.descricao = validarDescricao(descricao);
+            this.valor = Objects.requireNonNull(valor, "valor não pode ser nulo");
+        }
+
+        public static AjusteConta credito(String descricao, Dinheiro valor) {
+            return new AjusteConta(Tipo.CREDITO, descricao, valor);
+        }
+
+        public static AjusteConta debito(String descricao, Dinheiro valor) {
+            return new AjusteConta(Tipo.DEBITO, descricao, valor);
+        }
+
+        public Tipo getTipo() {
+            return tipo;
+        }
+
+        public String getDescricao() {
+            return descricao;
+        }
+
+        public Dinheiro getValor() {
+            return valor;
+        }
+
+        private String validarDescricao(String descricao) {
+            Objects.requireNonNull(descricao, "descricao não pode ser nula");
+            String normalizado = descricao.trim();
+            if (normalizado.isEmpty()) {
+                throw new IllegalArgumentException("descricao não pode ser vazia");
+            }
+            return normalizado;
+        }
+
+        @Override
+        public String toString() {
+            return "AjusteConta{"
+                    + "tipo=" + tipo
+                    + ", descricao='" + descricao + '\''
+                    + ", valor=" + valor
+                    + '}';
+        }
+    }
+
+    /**
+     * Informações registradas quando há cancelamento com retenção.
+     */
+    public static final class CancelamentoRegistro {
+
+        private BigDecimal percentualRetencao;
+        private Dinheiro valorRetencao;
+        private Dinheiro valorReembolso;
+        private Dinheiro totalServicos;
+
+        private CancelamentoRegistro() {
+            // construtor para serialização
+        }
+
+        private CancelamentoRegistro(BigDecimal percentualRetencao, Dinheiro valorRetencao,
+                                     Dinheiro valorReembolso, Dinheiro totalServicos) {
+            this.percentualRetencao = Objects.requireNonNull(percentualRetencao, "percentualRetencao não pode ser nulo");
+            this.valorRetencao = Objects.requireNonNull(valorRetencao, "valorRetencao não pode ser nulo");
+            this.valorReembolso = Objects.requireNonNull(valorReembolso, "valorReembolso não pode ser nulo");
+            this.totalServicos = Objects.requireNonNull(totalServicos, "totalServicos não pode ser nulo");
+        }
+
+        public BigDecimal getPercentualRetencao() {
+            return percentualRetencao;
+        }
+
+        public Dinheiro getValorRetencao() {
+            return valorRetencao;
+        }
+
+        public Dinheiro getValorReembolso() {
+            return valorReembolso;
+        }
+
+        public Dinheiro getTotalServicos() {
+            return totalServicos;
+        }
+
+        @Override
+        public String toString() {
+            return "CancelamentoRegistro{"
+                    + "percentualRetencao=" + percentualRetencao
+                    + ", valorRetencao=" + valorRetencao
+                    + ", valorReembolso=" + valorReembolso
+                    + ", totalServicos=" + totalServicos
+                    + '}';
+        }
     }
 }

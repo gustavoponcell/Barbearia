@@ -1,6 +1,7 @@
 package br.ufvjm.barbearia.persist;
 
 import br.ufvjm.barbearia.model.Agendamento;
+import br.ufvjm.barbearia.model.CaixaDiario;
 import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
 import br.ufvjm.barbearia.model.Despesa;
@@ -26,6 +27,7 @@ public class DataSnapshot {
     public List<ContaAtendimento> contas;
     public List<Despesa> despesas;
     public List<RecebimentoFornecedor> recebimentos;
+    public List<CaixaDiario> caixas;
 
     public DataSnapshot() {
         this.clientes = new ArrayList<>();
@@ -37,12 +39,13 @@ public class DataSnapshot {
         this.contas = new ArrayList<>();
         this.despesas = new ArrayList<>();
         this.recebimentos = new ArrayList<>();
+        this.caixas = new ArrayList<>();
     }
 
     @Override
     public String toString() {
         return String.format(
-                "DataSnapshot[clientes=%d, usuarios=%d, servicos=%d, produtos=%d, agendamentos=%d, vendas=%d, contas=%d, despesas=%d, recebimentos=%d]",
+                "DataSnapshot[clientes=%d, usuarios=%d, servicos=%d, produtos=%d, agendamentos=%d, vendas=%d, contas=%d, despesas=%d, recebimentos=%d, caixas=%d]",
                 sizeOf(clientes),
                 sizeOf(usuarios),
                 sizeOf(servicos),
@@ -51,7 +54,8 @@ public class DataSnapshot {
                 sizeOf(vendas),
                 sizeOf(contas),
                 sizeOf(despesas),
-                sizeOf(recebimentos)
+                sizeOf(recebimentos),
+                sizeOf(caixas)
         );
     }
 

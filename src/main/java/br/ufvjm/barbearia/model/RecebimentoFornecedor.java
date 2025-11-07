@@ -1,6 +1,7 @@
 package br.ufvjm.barbearia.model;
 
 import br.ufvjm.barbearia.value.Dinheiro;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,6 +17,7 @@ public class RecebimentoFornecedor {
     private final String numeroNF;
     private final List<ItemRecebimento> itens;
     private Dinheiro total;
+    private Dinheiro pagamentoEfetuado;
 
     public RecebimentoFornecedor(UUID id, String fornecedor, LocalDateTime dataHora, String numeroNF) {
         this.id = Objects.requireNonNull(id, "id não pode ser nulo");
@@ -52,6 +54,19 @@ public class RecebimentoFornecedor {
         return total;
     }
 
+    public Dinheiro getPagamentoEfetuado() {
+        if (pagamentoEfetuado != null) {
+            return pagamentoEfetuado;
+        }
+        if (total != null) {
+            return Dinheiro.of(BigDecimal.ZERO, total.getMoeda());
+        }
+        if (!itens.isEmpty()) {
+            return Dinheiro.of(BigDecimal.ZERO, itens.get(0).subtotal().getMoeda());
+        }
+        throw new IllegalStateException("Não é possível determinar a moeda sem itens");
+    }
+
     public void adicionarItem(ItemRecebimento itemRecebimento) {
         itens.add(Objects.requireNonNull(itemRecebimento, "itemRecebimento não pode ser nulo"));
         total = null;
@@ -69,6 +84,31 @@ public class RecebimentoFornecedor {
         return acumulado;
     }
 
+    public Dinheiro registrarPagamento(Dinheiro valor) {
+        Objects.requireNonNull(valor, "valor não pode ser nulo");
+        if (valor.getValor().signum() <= 0) {
+            throw new IllegalArgumentException("valor de pagamento deve ser positivo");
+        }
+        Dinheiro totalCalculado = total != null ? total : calcularTotal();
+        if (!valor.getMoeda().equals(totalCalculado.getMoeda())) {
+            throw new IllegalArgumentException("Moeda do pagamento deve coincidir com a da nota");
+        }
+        Dinheiro pagoAtual = pagamentoEfetuado != null
+                ? pagamentoEfetuado
+                : Dinheiro.of(BigDecimal.ZERO, valor.getMoeda());
+        Dinheiro novoTotalPago = pagoAtual.somar(valor);
+        if (novoTotalPago.getValor().compareTo(totalCalculado.getValor()) > 0) {
+            throw new IllegalArgumentException("Pagamento excede o total do recebimento");
+        }
+        pagamentoEfetuado = novoTotalPago;
+        return pagamentoEfetuado;
+    }
+
+    public Dinheiro getSaldoPendente() {
+        Dinheiro totalCalculado = total != null ? total : calcularTotal();
+        return totalCalculado.subtrair(getPagamentoEfetuado());
+    }
+
     @Override
     public String toString() {
         return "RecebimentoFornecedor{"
@@ -78,6 +118,7 @@ public class RecebimentoFornecedor {
                 + ", numeroNF='" + numeroNF + '\''
                 + ", itens=" + itens
                 + ", total=" + total
+                + ", pagamentoEfetuado=" + pagamentoEfetuado
                 + '}';
     }
 
