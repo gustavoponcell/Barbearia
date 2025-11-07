@@ -12,8 +12,9 @@ import java.util.UUID;
  * <p>
  * Estende {@link Pessoa} adicionando informações específicas, como o CPF com
  * armazenamento seguro ({@link CpfHash}) e o estado de atividade. Mantém ainda
- * o contador estático {@link #totalVeiculosProtegido} para fins didáticos
- * (exigência do projeto), atualizado externamente na criação de veículos.
+ * os contadores estáticos {@link #totalVeiculosProtegido} e
+ * {@link #totalServicosProtegido} para fins didáticos (exigência do projeto),
+ * atualizados externamente na criação de veículos e serviços.
  * </p>
  *
  * <p>
@@ -38,6 +39,14 @@ import java.util.UUID;
 public class Cliente extends Pessoa {
 
     protected static int totalVeiculosProtegido;
+    /**
+     * Estratégia protegida para contar serviços criados.
+     * <p>
+     * (+) Implementação simples; (–) expõe o contador a subclasses e classes do
+     * mesmo pacote, aumentando o risco de acoplamento e modificações indevidas.
+     * </p>
+     */
+    protected static int totalServicosProtegido;
 
     private final CpfHash cpf;
     private boolean ativo;
@@ -47,6 +56,23 @@ public class Cliente extends Pessoa {
         super(id, nome, endereco, telefone, email);
         this.cpf = Objects.requireNonNull(cpf, "cpf não pode ser nulo");
         this.ativo = ativo;
+    }
+
+    static void incrementarTotalServicosProtegido() {
+        totalServicosProtegido++;
+    }
+
+    /**
+     * Retorna o contador protegido de serviços.
+     * <p>
+     * (+) Encapsulado via getter para facilitar verificações; (–) continua
+     * suscetível a alterações externas devido ao modificador {@code protected}.
+     * </p>
+     *
+     * @return total de serviços registrados pela estratégia protegida.
+     */
+    public static int getTotalServicosProtegido() {
+        return totalServicosProtegido;
     }
 
     public CpfHash getCpf() {
@@ -77,6 +103,7 @@ public class Cliente extends Pessoa {
                 + "cpf=" + cpf
                 + ", ativo=" + ativo
                 + ", totalVeiculosProtegido=" + totalVeiculosProtegido
+                + ", totalServicosProtegido=" + totalServicosProtegido
                 + ", pessoa=" + super.toString()
                 + '}';
     }
