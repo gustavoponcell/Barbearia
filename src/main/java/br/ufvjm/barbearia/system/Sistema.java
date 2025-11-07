@@ -2,6 +2,7 @@ package br.ufvjm.barbearia.system;
 
 import br.ufvjm.barbearia.compare.AgendamentoPorInicio;
 import br.ufvjm.barbearia.compare.ClientePorNome;
+import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.enums.Papel;
 import br.ufvjm.barbearia.exceptions.PermissaoNegadaException;
 import br.ufvjm.barbearia.model.Agendamento;
@@ -96,6 +97,7 @@ public class Sistema {
     private static final DateTimeFormatter DATA_HORA_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final ClientePorNome DEFAULT_CLIENTE_COMPARATOR = new ClientePorNome();
     private static final AgendamentoPorInicio DEFAULT_AGENDAMENTO_COMPARATOR = new AgendamentoPorInicio();
+    private static final Path EXTRATOS_DIR = Path.of("data/extratos");
 
     public static synchronized void incrementarTotalOS() {
         totalOrdensServico++;
@@ -369,7 +371,9 @@ public class Sistema {
     // 🔹 Vendas
     public void registrarVenda(Usuario solicitante, Venda venda) {
         assertColaboradorOuAdmin(solicitante);
-        vendas.add(Objects.requireNonNull(venda, "venda não pode ser nula"));
+        Venda registro = Objects.requireNonNull(venda, "venda não pode ser nula");
+        vendas.add(registro);
+        gerarExtratoVenda(registro);
     }
 
     public List<Venda> listarVendas(Usuario solicitante) {
@@ -415,6 +419,36 @@ public class Sistema {
         return contas.stream()
                 .filter(c -> c.getAgendamento().getId().equals(agendamentoId))
                 .findFirst();
+    }
+
+    public ContaAtendimento fecharContaAtendimento(Usuario solicitante, UUID agendamentoId,
+                                                   FormaPagamento formaPagamento) {
+        assertColaboradorOuAdmin(solicitante);
+        Objects.requireNonNull(agendamentoId, "agendamentoId não pode ser nulo");
+        Objects.requireNonNull(formaPagamento, "formaPagamento não pode ser nula");
+
+        Agendamento agendamento = localizarAgendamento(agendamentoId);
+        ContaAtendimento conta = buscarContaPorAgendamento(agendamentoId)
+                .orElseGet(() -> criarContaAtendimento(agendamento));
+
+        if (!conta.isFechada()) {
+            boolean totalCalculado = true;
+            try {
+                conta.getTotal();
+            } catch (IllegalStateException e) {
+                totalCalculado = false;
+            }
+            if (!totalCalculado) {
+                conta.calcularTotal(agendamento.totalServicos());
+            }
+            conta.fecharConta(formaPagamento);
+            Log.info("Conta de atendimento %s fechada com %s", conta.getId(), formaPagamento);
+        } else {
+            Log.debug("Conta de atendimento %s já estava fechada", conta.getId());
+        }
+
+        gerarExtratoServico(conta);
+        return conta;
     }
 
     // 🔹 Caixa Diário
@@ -587,16 +621,43 @@ public class Sistema {
     }
 
     // 🔹 Extratos
-    public void gerarExtratoServico(Agendamento ag) {
-        Objects.requireNonNull(ag, "agendamento não pode ser nulo");
+    public void gerarExtratoServico(ContaAtendimento conta) {
+        Objects.requireNonNull(conta, "conta não pode ser nula");
+        if (conta.isExtratoServicoGerado()) {
+            Log.debug("Extrato de serviço da conta %s já gerado em %s", conta.getId(),
+                    conta.getExtratoServicoGeradoEm());
+            return;
+        }
+
+        Agendamento ag = conta.getAgendamento();
+        Cliente cliente = ag.getCliente();
+        String nomeCliente = cliente != null ? cliente.getNome() : "(sem cliente)";
         String nomeBarbeiro = ag.getBarbeiro() != null ? ag.getBarbeiro().getNome() : "(sem barbeiro)";
-        String extrato = "Extrato de Serviço\nCliente: " + ag.getCliente().getNome()
-                + "\nBarbeiro: " + nomeBarbeiro
-                + "\nTotal: " + ag.totalServicos();
+        Dinheiro totalConta;
         try {
-            Path arquivo = ExtratoIO.saveExtrato(ag.getCliente(), extrato, Path.of("data/extratos"));
-            ag.getCliente().registrarExtrato(arquivo.toString());
-            Log.info("Extrato de serviço gerado em %s para %s", arquivo.toAbsolutePath(), ag.getCliente().getNome());
+            totalConta = conta.getTotal();
+        } catch (IllegalStateException e) {
+            totalConta = conta.calcularTotal(ag.totalServicos());
+        }
+        String formaPagamentoTexto = conta.isFechada() ? conta.getFormaPagamento().name() : "(não informado)";
+
+        String extrato = new StringBuilder()
+                .append("Extrato de Serviço\n")
+                .append("OS: ").append(ag.getId()).append('\n')
+                .append("Cliente: ").append(nomeCliente).append('\n')
+                .append("Barbeiro: ").append(nomeBarbeiro).append('\n')
+                .append("Total serviços: ").append(ag.totalServicos()).append('\n')
+                .append("Total conta: ").append(totalConta).append('\n')
+                .append("Forma de pagamento: ").append(formaPagamentoTexto)
+                .toString();
+
+        try {
+            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, EXTRATOS_DIR);
+            conta.marcarExtratoServicoGerado(LocalDateTime.now(), arquivo.toString());
+            if (cliente != null) {
+                cliente.registrarExtrato(arquivo.toString());
+            }
+            Log.info("Extrato de serviço gerado em %s para %s", arquivo.toAbsolutePath(), nomeCliente);
         } catch (IOException e) {
             Log.error("Falha ao gerar extrato de serviço", e);
             throw new UncheckedIOException("Falha ao gerar extrato de serviço", e);
@@ -605,16 +666,27 @@ public class Sistema {
 
     public void gerarExtratoVenda(Venda v) {
         Objects.requireNonNull(v, "venda não pode ser nula");
+        if (v.isExtratoGerado()) {
+            Log.debug("Extrato da venda %s já gerado em %s", v.getId(), v.getExtratoGeradoEm());
+            return;
+        }
         Cliente cliente = v.getCliente();
         String nomeCliente = cliente != null ? cliente.getNome() : "Consumidor final";
+        Dinheiro totalVenda;
+        try {
+            totalVenda = v.getTotal();
+        } catch (IllegalStateException e) {
+            totalVenda = v.calcularTotal();
+        }
         String extrato = "Extrato de Venda\nCliente: "
                 + nomeCliente
-                + "\nTotal: " + v.getTotal();
+                + "\nTotal: " + totalVenda;
         try {
-            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, EXTRATOS_DIR);
             if (cliente != null) {
                 cliente.registrarExtrato(arquivo.toString());
             }
+            v.marcarExtratoGerado(LocalDateTime.now(), cliente != null ? arquivo.toString() : "Consumidor final");
             Log.info("Extrato de venda gerado em %s para %s", arquivo.toAbsolutePath(), nomeCliente);
         } catch (IOException e) {
             Log.error("Falha ao gerar extrato de venda", e);
@@ -625,6 +697,11 @@ public class Sistema {
     public void gerarExtratoCancelamento(Agendamento agendamento, Agendamento.Cancelamento cancelamento) {
         Objects.requireNonNull(agendamento, "agendamento não pode ser nulo");
         Objects.requireNonNull(cancelamento, "cancelamento não pode ser nulo");
+        if (agendamento.isExtratoCancelamentoGerado()) {
+            Log.debug("Extrato de cancelamento da OS %s já gerado em %s",
+                    agendamento.getId(), agendamento.getExtratoCancelamentoGeradoEm());
+            return;
+        }
         Cliente cliente = agendamento.getCliente();
         BigDecimal percentual = cancelamento.getPercentualRetencao().multiply(BigDecimal.valueOf(100));
         String extrato = "Extrato de Cancelamento\nCliente: " + cliente.getNome()
@@ -633,8 +710,9 @@ public class Sistema {
                 + "\nRetenção (" + percentual.stripTrailingZeros().toPlainString() + "%): " + cancelamento.getValorRetencao()
                 + "\nValor a reembolsar: " + cancelamento.getValorReembolso();
         try {
-            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, EXTRATOS_DIR);
             cliente.registrarExtrato(arquivo.toString());
+            agendamento.marcarExtratoCancelamentoGerado(LocalDateTime.now(), arquivo.toString());
             Log.info("Extrato de cancelamento gerado em %s para %s", arquivo.toAbsolutePath(), cliente.getNome());
         } catch (IOException e) {
             Log.error("Falha ao gerar extrato de cancelamento", e);

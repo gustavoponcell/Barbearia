@@ -3,6 +3,7 @@ package br.ufvjm.barbearia.model;
 import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.value.Dinheiro;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +50,8 @@ public class ContaAtendimento {
     private FormaPagamento formaPagamento;
     private CancelamentoRegistro cancelamentoRegistro;
     private boolean fechada;
+    private LocalDateTime extratoServicoGeradoEm;
+    private String referenciaExtratoServico;
 
     public ContaAtendimento(UUID id, Agendamento agendamento) {
         this(id, agendamento, null);
@@ -195,6 +198,26 @@ public class ContaAtendimento {
 
     public boolean isFechada() {
         return fechada;
+    }
+
+    public boolean isExtratoServicoGerado() {
+        return extratoServicoGeradoEm != null;
+    }
+
+    public LocalDateTime getExtratoServicoGeradoEm() {
+        return extratoServicoGeradoEm;
+    }
+
+    public String getReferenciaExtratoServico() {
+        return referenciaExtratoServico;
+    }
+
+    public void marcarExtratoServicoGerado(LocalDateTime momento, String referencia) {
+        if (isExtratoServicoGerado()) {
+            return;
+        }
+        this.extratoServicoGeradoEm = Objects.requireNonNull(momento, "momento não pode ser nulo");
+        this.referenciaExtratoServico = Objects.requireNonNull(referencia, "referencia não pode ser nula");
     }
 
     @Override
