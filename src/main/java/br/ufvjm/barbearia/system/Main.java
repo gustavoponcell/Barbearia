@@ -121,7 +121,7 @@ public final class Main {
         LocalDateTime inicio = LocalDateTime.now();
         LocalDateTime fim = inicio.plusMinutes(30);
 
-        Agendamento agendamento = new Agendamento(
+        Agendamento agendamento = sistema.criarAgendamento(
                 UUID.randomUUID(),
                 cli1,
                 Estacao.ESTACOES[0],
@@ -135,12 +135,25 @@ public final class Main {
         agendamento.alterarStatus(StatusAtendimento.EM_ATENDIMENTO);
         agendamento.alterarStatus(StatusAtendimento.CONCLUIDO);
 
-        sistema.realizarAgendamento(agendamento);
         sistema.gerarExtratoServico(agendamento);
+
+        Agendamento segundoAgendamento = sistema.criarAgendamento(
+                UUID.randomUUID(),
+                cli2,
+                Estacao.ESTACOES[1],
+                inicio.plusHours(1),
+                fim.plusHours(1),
+                Dinheiro.of(new BigDecimal("15"), brl)
+        );
+        segundoAgendamento.associarBarbeiro(barbeiro);
+        segundoAgendamento.adicionarItemServico(new ItemDeServico(corte, corte.getPreco(), corte.getDuracaoMin()));
 
         sistema.saveAll(Path.of("data/barbearia.json"));
 
         System.out.println(sistema);
         System.out.println("Total de OS criadas: " + Sistema.getTotalOrdensServicoCriadas());
+        if (Sistema.getTotalOrdensServicoCriadas() != 2) {
+            throw new IllegalStateException("Contador de OS inconsistente: " + Sistema.getTotalOrdensServicoCriadas());
+        }
     }
 }
