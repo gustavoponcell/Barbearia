@@ -22,20 +22,30 @@ public final class ExtratoIO {
         // utilitário
     }
 
-    public static void saveExtrato(Cliente cliente, String extrato, Path dir) throws IOException {
-        Objects.requireNonNull(cliente, "cliente não pode ser nulo");
+    /**
+     * Persiste o extrato em disco e retorna o {@link Path} gerado.
+     *
+     * @param cliente cliente associado ao extrato ou {@code null} para consumidor final.
+     * @param extrato conteúdo textual do extrato.
+     * @param dir diretório base onde o arquivo será criado.
+     * @return caminho do arquivo criado.
+     * @throws IOException se ocorrer erro de escrita.
+     */
+    public static Path saveExtrato(Cliente cliente, String extrato, Path dir) throws IOException {
         Objects.requireNonNull(extrato, "extrato não pode ser nulo");
         Objects.requireNonNull(dir, "dir não pode ser nulo");
 
         Files.createDirectories(dir);
 
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-        String fileName = String.format("extrato_%s_%s.txt", cliente.getId(), timestamp);
+        String identificador = cliente != null ? cliente.getId().toString() : "consumidor_final";
+        String fileName = String.format("extrato_%s_%s.txt", identificador, timestamp);
         Path file = dir.resolve(fileName);
 
         try (BufferedWriter writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
             writer.write(extrato);
         }
+        return file;
     }
 
     public static String description() {

@@ -17,6 +17,7 @@ import br.ufvjm.barbearia.model.ItemRecebimento;
 import br.ufvjm.barbearia.persist.DataSnapshot;
 import br.ufvjm.barbearia.persist.ExtratoIO;
 import br.ufvjm.barbearia.persist.JsonStorage;
+import br.ufvjm.barbearia.util.Log;
 import br.ufvjm.barbearia.value.Dinheiro;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -403,10 +404,14 @@ public class Sistema {
     private void registrarAgendamento(Agendamento ag) {
         agendamentos.add(ag);
         incrementarTotalOS();
+        String clienteNome = ag.getCliente() != null ? ag.getCliente().getNome() : "(sem cliente)";
+        Log.info("Agendamento registrado: %s para %s", ag.getId(), clienteNome);
     }
 
     public void adicionarAgendamentoSecundario(Agendamento ag) {
         filaSecundaria.push(Objects.requireNonNull(ag, "agendamento não pode ser nulo"));
+        String clienteNome = ag.getCliente() != null ? ag.getCliente().getNome() : "(sem cliente)";
+        Log.info("Agendamento movido para fila secundária: %s (%s)", ag.getId(), clienteNome);
     }
 
     public Agendamento recuperarAgendamentoSecundario() {
@@ -437,6 +442,7 @@ public class Sistema {
         }
 
         gerarExtratoCancelamento(agendamento, cancelamento);
+        Log.info("Agendamento cancelado: %s (retenção %s)", agendamento.getId(), valorRetencao);
         return cancelamento;
     }
 
@@ -508,31 +514,31 @@ public class Sistema {
         String extrato = "Extrato de Serviço\nCliente: " + ag.getCliente().getNome()
                 + "\nBarbeiro: " + nomeBarbeiro
                 + "\nTotal: " + ag.totalServicos();
-        if (Boolean.getBoolean("barbearia.debug")) {
-            System.out.printf("[DEBUG] %s gerando extrato de serviço para cliente %s%n",
-                    ExtratoIO.description(), ag.getCliente().getNome());
-        }
         try {
-            ExtratoIO.saveExtrato(ag.getCliente(), extrato, Path.of("data/extratos"));
+            Path arquivo = ExtratoIO.saveExtrato(ag.getCliente(), extrato, Path.of("data/extratos"));
+            ag.getCliente().registrarExtrato(arquivo.toString());
+            Log.info("Extrato de serviço gerado em %s para %s", arquivo.toAbsolutePath(), ag.getCliente().getNome());
         } catch (IOException e) {
+            Log.error("Falha ao gerar extrato de serviço", e);
             throw new UncheckedIOException("Falha ao gerar extrato de serviço", e);
         }
     }
 
     public void gerarExtratoVenda(Venda v) {
         Objects.requireNonNull(v, "venda não pode ser nula");
-        Cliente cliente = Objects.requireNonNull(v.getCliente(), "venda deve estar associada a um cliente");
-        String nomeCliente = cliente != null ? cliente.getNome() : "Consumidor";
+        Cliente cliente = v.getCliente();
+        String nomeCliente = cliente != null ? cliente.getNome() : "Consumidor final";
         String extrato = "Extrato de Venda\nCliente: "
                 + nomeCliente
                 + "\nTotal: " + v.getTotal();
-        if (Boolean.getBoolean("barbearia.debug")) {
-            System.out.printf("[DEBUG] %s gerando extrato de venda para cliente %s%n",
-                    ExtratoIO.description(), nomeCliente);
-        }
         try {
-            ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+            if (cliente != null) {
+                cliente.registrarExtrato(arquivo.toString());
+            }
+            Log.info("Extrato de venda gerado em %s para %s", arquivo.toAbsolutePath(), nomeCliente);
         } catch (IOException e) {
+            Log.error("Falha ao gerar extrato de venda", e);
             throw new UncheckedIOException("Falha ao gerar extrato de venda", e);
         }
     }
@@ -547,13 +553,12 @@ public class Sistema {
                 + "\nTotal de Serviços: " + cancelamento.getTotalServicos()
                 + "\nRetenção (" + percentual.stripTrailingZeros().toPlainString() + "%): " + cancelamento.getValorRetencao()
                 + "\nValor a reembolsar: " + cancelamento.getValorReembolso();
-        if (Boolean.getBoolean("barbearia.debug")) {
-            System.out.printf("[DEBUG] %s gerando extrato de cancelamento para cliente %s%n",
-                    ExtratoIO.description(), cliente.getNome());
-        }
         try {
-            ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+            Path arquivo = ExtratoIO.saveExtrato(cliente, extrato, Path.of("data/extratos"));
+            cliente.registrarExtrato(arquivo.toString());
+            Log.info("Extrato de cancelamento gerado em %s para %s", arquivo.toAbsolutePath(), cliente.getNome());
         } catch (IOException e) {
+            Log.error("Falha ao gerar extrato de cancelamento", e);
             throw new UncheckedIOException("Falha ao gerar extrato de cancelamento", e);
         }
     }
@@ -574,12 +579,11 @@ public class Sistema {
                 .withRecebimentos(recebimentos)
                 .withCaixas(caixas)
                 .build();
-        if (Boolean.getBoolean("barbearia.debug")) {
-            System.out.printf("[DEBUG] %s pronto para salvar em %s via %s%n", snap, path, JsonStorage.description());
-        }
+        Log.info("Persistindo snapshot em %s via %s", path.toAbsolutePath(), JsonStorage.description());
         try {
             JsonStorage.save(snap, path);
         } catch (IOException e) {
+            Log.error("Falha ao salvar dados do sistema", e);
             throw new UncheckedIOException("Falha ao salvar dados do sistema", e);
         }
     }
@@ -588,9 +592,7 @@ public class Sistema {
         Objects.requireNonNull(path, "path não pode ser nulo");
         try {
             DataSnapshot snap = JsonStorage.load(path);
-            if (Boolean.getBoolean("barbearia.debug")) {
-                System.out.printf("[DEBUG] Snapshot carregado de %s usando %s: %s%n", path, JsonStorage.description(), snap);
-            }
+            Log.info("Snapshot carregado de %s usando %s", path.toAbsolutePath(), JsonStorage.description());
             this.clientes = new ArrayList<>(snap.getClientes());
             this.usuarios = new ArrayList<>(snap.getUsuarios());
             this.servicos = new ArrayList<>(snap.getServicos());
@@ -605,6 +607,7 @@ public class Sistema {
             Servico.reidratarContadores(this.servicos);
             redefinirTotalOrdensServico(contarElementos(this.agendamentos));
         } catch (IOException e) {
+            Log.error("Falha ao carregar dados do sistema", e);
             throw new UncheckedIOException("Falha ao carregar dados do sistema", e);
         }
     }
