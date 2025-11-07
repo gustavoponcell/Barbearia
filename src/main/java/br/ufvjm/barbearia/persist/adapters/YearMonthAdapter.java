@@ -33,4 +33,9 @@ public final class YearMonthAdapter extends TypeAdapter<YearMonth> {
         String value = in.nextString();
         return YearMonth.parse(value, FORMATTER);
     }
+
+    @Override
+    public String toString() {
+        return "YearMonthAdapter[formata YearMonth como yyyy-MM]";
+    }
 }

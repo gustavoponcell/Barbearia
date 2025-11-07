@@ -73,4 +73,9 @@ public final class DinheiroAdapter extends TypeAdapter<Dinheiro> {
 
         return Dinheiro.of(valor, moeda);
     }
+
+    @Override
+    public String toString() {
+        return "DinheiroAdapter[serializa e desserializa valores monetários com moeda]";
+    }
 }
