@@ -33,4 +33,9 @@ public final class LocalDateAdapter extends TypeAdapter<LocalDate> {
         String value = in.nextString();
         return LocalDate.parse(value, FORMATTER);
     }
+
+    @Override
+    public String toString() {
+        return "LocalDateAdapter[formata LocalDate em ISO-8601]";
+    }
 }

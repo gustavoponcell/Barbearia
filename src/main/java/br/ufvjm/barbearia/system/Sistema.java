@@ -562,17 +562,18 @@ public class Sistema {
     public void saveAll(Usuario solicitante, Path path) {
         assertAdmin(solicitante);
         Objects.requireNonNull(path, "path não pode ser nulo");
-        DataSnapshot snap = new DataSnapshot();
-        snap.clientes = new ArrayList<>(clientes);
-        snap.usuarios = new ArrayList<>(usuarios);
-        snap.servicos = new ArrayList<>(servicos);
-        snap.produtos = new ArrayList<>(produtos);
-        snap.agendamentos = new ArrayList<>(agendamentos);
-        snap.vendas = new ArrayList<>(vendas);
-        snap.contas = new ArrayList<>(contas);
-        snap.despesas = new ArrayList<>(despesas);
-        snap.recebimentos = new ArrayList<>(recebimentos);
-        snap.caixas = new ArrayList<>(caixas);
+        DataSnapshot snap = DataSnapshot.builder()
+                .withClientes(clientes)
+                .withUsuarios(usuarios)
+                .withServicos(servicos)
+                .withProdutos(produtos)
+                .withAgendamentos(agendamentos)
+                .withVendas(vendas)
+                .withContas(contas)
+                .withDespesas(despesas)
+                .withRecebimentos(recebimentos)
+                .withCaixas(caixas)
+                .build();
         if (Boolean.getBoolean("barbearia.debug")) {
             System.out.printf("[DEBUG] %s pronto para salvar em %s via %s%n", snap, path, JsonStorage.description());
         }
@@ -590,16 +591,16 @@ public class Sistema {
             if (Boolean.getBoolean("barbearia.debug")) {
                 System.out.printf("[DEBUG] Snapshot carregado de %s usando %s: %s%n", path, JsonStorage.description(), snap);
             }
-            this.clientes = new ArrayList<>(Objects.requireNonNullElse(snap.clientes, List.of()));
-            this.usuarios = new ArrayList<>(Objects.requireNonNullElse(snap.usuarios, List.of()));
-            this.servicos = new ArrayList<>(Objects.requireNonNullElse(snap.servicos, List.of()));
-            this.produtos = new ArrayList<>(Objects.requireNonNullElse(snap.produtos, List.of()));
-            this.agendamentos = new ArrayList<>(Objects.requireNonNullElse(snap.agendamentos, List.of()));
-            this.vendas = new ArrayList<>(Objects.requireNonNullElse(snap.vendas, List.of()));
-            this.contas = new ArrayList<>(Objects.requireNonNullElse(snap.contas, List.of()));
-            this.despesas = new ArrayList<>(Objects.requireNonNullElse(snap.despesas, List.of()));
-            this.recebimentos = new ArrayList<>(Objects.requireNonNullElse(snap.recebimentos, List.of()));
-            this.caixas = new ArrayList<>(Objects.requireNonNullElse(snap.caixas, List.of()));
+            this.clientes = new ArrayList<>(snap.getClientes());
+            this.usuarios = new ArrayList<>(snap.getUsuarios());
+            this.servicos = new ArrayList<>(snap.getServicos());
+            this.produtos = new ArrayList<>(snap.getProdutos());
+            this.agendamentos = new ArrayList<>(snap.getAgendamentos());
+            this.vendas = new ArrayList<>(snap.getVendas());
+            this.contas = new ArrayList<>(snap.getContas());
+            this.despesas = new ArrayList<>(snap.getDespesas());
+            this.recebimentos = new ArrayList<>(snap.getRecebimentos());
+            this.caixas = new ArrayList<>(snap.getCaixas());
 
             Servico.reidratarContadores(this.servicos);
             redefinirTotalOrdensServico(contarElementos(this.agendamentos));
