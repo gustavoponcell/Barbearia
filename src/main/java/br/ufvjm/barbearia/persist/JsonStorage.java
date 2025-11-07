@@ -1,5 +1,9 @@
 package br.ufvjm.barbearia.persist;
 
+import br.ufvjm.barbearia.persist.adapters.DinheiroAdapter;
+import br.ufvjm.barbearia.persist.adapters.LocalDateTimeAdapter;
+import br.ufvjm.barbearia.persist.adapters.YearMonthAdapter;
+import br.ufvjm.barbearia.value.Dinheiro;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.io.BufferedReader;
@@ -8,6 +12,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.Objects;
 
 /**
@@ -42,12 +48,19 @@ import java.util.Objects;
  */
 public final class JsonStorage {
 
-    private static final Gson GSON = new GsonBuilder()
-            .setPrettyPrinting()
-            .create();
+    private static final Gson GSON = createGson();
 
     private JsonStorage() {
         // utilitário
+    }
+
+    private static Gson createGson() {
+        GsonBuilder builder = new GsonBuilder()
+                .registerTypeAdapter(LocalDateTime.class, new LocalDateTimeAdapter())
+                .registerTypeAdapter(YearMonth.class, new YearMonthAdapter())
+                .registerTypeAdapter(Dinheiro.class, new DinheiroAdapter())
+                .setPrettyPrinting();
+        return builder.create();
     }
 
     public static void save(DataSnapshot data, Path file) throws IOException {
