@@ -1,7 +1,6 @@
 package br.ufvjm.barbearia.model;
 
 import br.ufvjm.barbearia.enums.StatusAtendimento;
-import br.ufvjm.barbearia.system.Sistema;
 import br.ufvjm.barbearia.value.Dinheiro;
 import br.ufvjm.barbearia.value.Periodo;
 import java.time.LocalDateTime;
@@ -23,8 +22,8 @@ import java.util.UUID;
  * Regras centrais:
  * </p>
  * <ul>
- *     <li>Ao ser instanciado, o agendamento incrementa o contador global de OS do
- *     {@link Sistema}.</li>
+ *     <li>O contador global de OS é mantido pelo serviço de agendamento do
+ *     sistema, garantindo um único ponto de criação.</li>
  *     <li>O período {@link #inicio}/{@link #fim} deve ser válido e com fim posterior
  *     ao início.</li>
  *     <li>As transições de {@link StatusAtendimento} respeitam a sequência
@@ -70,8 +69,6 @@ public class Agendamento {
         this.sinal = Objects.requireNonNull(sinal, "sinal não pode ser nulo");
         this.itens = new ArrayList<>();
         this.status = StatusAtendimento.EM_ESPERA;
-
-        Sistema.incrementarTotalOS();
     }
 
     public UUID getId() {

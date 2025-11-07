@@ -6,6 +6,7 @@ import br.ufvjm.barbearia.model.Agendamento;
 import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
 import br.ufvjm.barbearia.model.Despesa;
+import br.ufvjm.barbearia.model.Estacao;
 import br.ufvjm.barbearia.model.Produto;
 import br.ufvjm.barbearia.model.RecebimentoFornecedor;
 import br.ufvjm.barbearia.model.Servico;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -268,8 +270,19 @@ public class Sistema {
     }
 
     // 🔹 Agendamentos
+    public Agendamento criarAgendamento(UUID id, Cliente cliente, Estacao estacao,
+                                        LocalDateTime inicio, LocalDateTime fim, Dinheiro sinal) {
+        Agendamento agendamento = new Agendamento(id, cliente, estacao, inicio, fim, sinal);
+        realizarAgendamento(agendamento);
+        return agendamento;
+    }
+
     public void realizarAgendamento(Agendamento ag) {
-        agendamentos.add(Objects.requireNonNull(ag, "agendamento não pode ser nulo"));
+        registrarAgendamento(Objects.requireNonNull(ag, "agendamento não pode ser nulo"));
+    }
+
+    private void registrarAgendamento(Agendamento ag) {
+        agendamentos.add(ag);
         incrementarTotalOS();
     }
 
