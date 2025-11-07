@@ -527,6 +527,17 @@ public class Sistema {
         Log.info("Agendamento movido para fila secundária: %s (%s)", ag.getId(), clienteNome);
     }
 
+    public Optional<Agendamento> inspecionarFilaSecundaria() {
+        Agendamento topo = filaSecundaria.peek();
+        if (topo == null) {
+            Log.info("Inspeção fila secundária: vazia");
+        } else {
+            String clienteNome = topo.getCliente() != null ? topo.getCliente().getNome() : "(sem cliente)";
+            Log.info("Inspeção fila secundária: próximo agendamento %s (%s)", topo.getId(), clienteNome);
+        }
+        return Optional.ofNullable(topo);
+    }
+
     public Agendamento recuperarAgendamentoSecundario() {
         if (filaSecundaria.isEmpty()) {
             throw new NoSuchElementException("Não há agendamentos na fila secundária");
