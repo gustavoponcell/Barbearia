@@ -69,8 +69,8 @@ public final class Main {
                 true
         );
 
-        sistema.cadastrarUsuario(adm);
-        sistema.cadastrarUsuario(barbeiro);
+        sistema.cadastrarUsuario(adm, adm);
+        sistema.cadastrarUsuario(adm, barbeiro);
 
         Cliente cli1 = new Cliente(
                 UUID.randomUUID(),
