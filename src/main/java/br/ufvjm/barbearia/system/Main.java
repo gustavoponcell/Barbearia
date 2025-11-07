@@ -270,7 +270,10 @@ public final class Main {
         recuperado.alterarStatus(StatusAtendimento.CONCLUIDO);
         System.out.printf("Agendamento recuperado e concluído: %s%n", recuperado.getId());
 
-        sistema.gerarExtratoServico(recuperado);
+        ContaAtendimento contaRecuperada = sistema.fecharContaAtendimento(colaborador,
+                recuperado.getId(), FormaPagamento.DINHEIRO);
+        System.out.printf("Conta do atendimento concluído fechada: %s | total=%s%n",
+                contaRecuperada.getId(), contaRecuperada.getTotal());
 
         Venda venda = new Venda(
                 UUID.randomUUID(),
@@ -282,7 +285,6 @@ public final class Main {
         venda.adicionarItem(new ItemVenda(balm, Quantidade.of(new BigDecimal("2"), "un"), balm.getPrecoVenda()));
         venda.calcularTotal();
         sistema.registrarVenda(colaborador, venda);
-        sistema.gerarExtratoVenda(venda);
 
         Venda vendaConsumidorFinal = new Venda(
                 UUID.randomUUID(),
@@ -293,7 +295,6 @@ public final class Main {
         vendaConsumidorFinal.adicionarItem(new ItemVenda(balm, Quantidade.of(BigDecimal.ONE, "un"), balm.getPrecoVenda()));
         vendaConsumidorFinal.calcularTotal();
         sistema.registrarVenda(colaborador, vendaConsumidorFinal);
-        sistema.gerarExtratoVenda(vendaConsumidorFinal);
 
         Set<Path> extratosDepois = listarArquivos(extratosDir);
         extratosDepois.removeAll(extratosAntes);

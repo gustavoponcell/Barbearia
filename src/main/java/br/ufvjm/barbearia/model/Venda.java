@@ -18,6 +18,8 @@ public class Venda {
     private final FormaPagamento formaPagamento;
     private final Dinheiro desconto;
     private Dinheiro total;
+    private LocalDateTime extratoGeradoEm;
+    private String referenciaExtrato;
 
     public Venda(UUID id, Cliente cliente, LocalDateTime dataHora, FormaPagamento formaPagamento) {
         this(id, cliente, dataHora, formaPagamento, null);
@@ -87,6 +89,26 @@ public class Venda {
         }
         total = totalCalculado;
         return totalCalculado;
+    }
+
+    public boolean isExtratoGerado() {
+        return extratoGeradoEm != null;
+    }
+
+    public LocalDateTime getExtratoGeradoEm() {
+        return extratoGeradoEm;
+    }
+
+    public String getReferenciaExtrato() {
+        return referenciaExtrato;
+    }
+
+    public void marcarExtratoGerado(LocalDateTime momento, String referencia) {
+        if (isExtratoGerado()) {
+            return;
+        }
+        this.extratoGeradoEm = Objects.requireNonNull(momento, "momento não pode ser nulo");
+        this.referenciaExtrato = Objects.requireNonNull(referencia, "referencia não pode ser nula");
     }
 
     @Override

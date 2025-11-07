@@ -56,6 +56,8 @@ public class Agendamento {
     private final List<ItemDeServico> itens;
     private StatusAtendimento status;
     private final Dinheiro sinal;
+    private LocalDateTime extratoCancelamentoGeradoEm;
+    private String referenciaExtratoCancelamento;
 
     public Agendamento(UUID id, Cliente cliente, Estacao estacao,
                        LocalDateTime inicio, LocalDateTime fim, Dinheiro sinal) {
@@ -169,6 +171,26 @@ public class Agendamento {
         return itens.stream()
                 .map(ItemDeServico::getServico)
                 .anyMatch(Servico::isRequerLavagem);
+    }
+
+    public boolean isExtratoCancelamentoGerado() {
+        return extratoCancelamentoGeradoEm != null;
+    }
+
+    public LocalDateTime getExtratoCancelamentoGeradoEm() {
+        return extratoCancelamentoGeradoEm;
+    }
+
+    public String getReferenciaExtratoCancelamento() {
+        return referenciaExtratoCancelamento;
+    }
+
+    public void marcarExtratoCancelamentoGerado(LocalDateTime momento, String referencia) {
+        if (isExtratoCancelamentoGerado()) {
+            return;
+        }
+        this.extratoCancelamentoGeradoEm = Objects.requireNonNull(momento, "momento não pode ser nulo");
+        this.referenciaExtratoCancelamento = Objects.requireNonNull(referencia, "referencia não pode ser nula");
     }
 
     @Override
