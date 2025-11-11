@@ -35,6 +35,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Currency;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -469,6 +470,55 @@ public class EntregaFinalMain {
                     .collect(Collectors.joining(", ")));
 
             return "Comparators demonstrados explicitamente no main";
+        });
+
+        // Questao 17: find custom com Iterator vs Collections.binarySearch()
+        executarQuestao(17, () -> {
+            Cliente clienteHelena = new Cliente(UUID.randomUUID(), "Helena Pesquisa", enderecoPadrao,
+                    Telefone.of("(33) 94444-5555"), Email.of("helena.pesquisa@barbearia.com"),
+                    CpfHash.fromMasked("101.202.303-40"), true);
+            Cliente clienteBruno = new Cliente(UUID.randomUUID(), "Bruno Pesquisa", enderecoPadrao,
+                    Telefone.of("(33) 93333-4444"), Email.of("bruno.pesquisa@barbearia.com"),
+                    CpfHash.fromMasked("202.303.404-50"), true);
+            Cliente clienteAmanda = new Cliente(UUID.randomUUID(), "Amanda Pesquisa", enderecoPadrao,
+                    Telefone.of("(33) 92222-3333"), Email.of("amanda.pesquisa@barbearia.com"),
+                    CpfHash.fromMasked("303.404.505-60"), true);
+            Cliente clienteRicardo = new Cliente(UUID.randomUUID(), "Ricardo Pesquisa", enderecoPadrao,
+                    Telefone.of("(33) 91111-2222"), Email.of("ricardo.pesquisa@barbearia.com"),
+                    CpfHash.fromMasked("404.505.606-70"), true);
+
+            List<Cliente> clientesBusca = new ArrayList<>();
+            clientesBusca.add(clienteHelena);
+            clientesBusca.add(clienteBruno);
+            clientesBusca.add(clienteAmanda);
+            clientesBusca.add(clienteRicardo);
+
+            Comparator<Cliente> comparadorPorNome = new ClientePorNome();
+            clientesBusca.sort(comparadorPorNome);
+
+            Cliente chaveExistente = new Cliente(UUID.randomUUID(), clienteHelena.getNome(), enderecoPadrao,
+                    Telefone.of("(33) 98888-1111"), Email.of("chave.helena@barbearia.com"),
+                    CpfHash.fromMasked("505.606.707-80"), true);
+            Cliente chaveInexistente = new Cliente(UUID.randomUUID(), "Zilda Ausente", enderecoPadrao,
+                    Telefone.of("(33) 97777-0000"), Email.of("zilda.ausente@barbearia.com"),
+                    CpfHash.fromMasked("606.707.808-90"), true);
+
+            int idxFindExistente = Sistema.find(clientesBusca, chaveExistente, comparadorPorNome);
+            int idxBinExistente = Collections.binarySearch(clientesBusca, chaveExistente, comparadorPorNome);
+            int idxFindInexistente = Sistema.find(clientesBusca, chaveInexistente, comparadorPorNome);
+            int idxBinInexistente = Collections.binarySearch(clientesBusca, chaveInexistente, comparadorPorNome);
+
+            System.out.printf("Questao 17 - chave existente -> find=%d, binarySearch=%d%n",
+                    idxFindExistente, idxBinExistente);
+            System.out.printf("Questao 17 - chave inexistente -> find=%d, binarySearch=%d%n",
+                    idxFindInexistente, idxBinInexistente);
+            System.out.println("find percorre a lista linearmente (O(n)). Já binarySearch exige a lista ordenada e executa em O(log n).");
+
+            String nomesOrdenados = clientesBusca.stream()
+                    .map(Cliente::getNome)
+                    .collect(Collectors.joining(", "));
+
+            return "Lista ordenada: [" + nomesOrdenados + "]";
         });
     }
 
