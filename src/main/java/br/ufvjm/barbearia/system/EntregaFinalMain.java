@@ -1,7 +1,9 @@
 package br.ufvjm.barbearia.system;
 
 import br.ufvjm.barbearia.compare.AgendamentoPorClienteNome;
+import br.ufvjm.barbearia.compare.AgendamentoPorInicio;
 import br.ufvjm.barbearia.compare.ClientePorEmail;
+import br.ufvjm.barbearia.compare.ClientePorNome;
 import br.ufvjm.barbearia.enums.CategoriaDespesa;
 import br.ufvjm.barbearia.enums.FormaPagamento;
 import br.ufvjm.barbearia.enums.Papel;
@@ -31,6 +33,7 @@ import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Currency;
 import java.util.Iterator;
 import java.util.List;
@@ -410,6 +413,62 @@ public class EntregaFinalMain {
             demonstracao.append("foreach usa internamente clientesIterator.iterator(), chamando hasNext()/next() automaticamente.");
 
             return demonstracao.toString();
+        });
+
+        // Questao 16: Comparator – demonstrar ordenação manual de listas com diferentes comparators
+        executarQuestao(16, () -> {
+            Cliente clienteZelia = new Cliente(UUID.randomUUID(), "Zélia Ramos", enderecoPadrao,
+                    Telefone.of("(33) 95555-1010"), Email.of("zelia.ramos@barbearia.com"),
+                    CpfHash.fromMasked("123.321.456-00"), true);
+            Cliente clienteMarcos = new Cliente(UUID.randomUUID(), "Marcos Oliveira", enderecoPadrao,
+                    Telefone.of("(33) 92222-3030"), Email.of("marcos.oliveira@barbearia.com"),
+                    CpfHash.fromMasked("789.987.654-11"), true);
+            Cliente clienteAna = new Cliente(UUID.randomUUID(), "Ana Paula", enderecoPadrao,
+                    Telefone.of("(33) 91111-2020"), Email.of("ana.paula@barbearia.com"),
+                    CpfHash.fromMasked("456.654.123-22"), true);
+
+            List<Cliente> clientesComparators = new ArrayList<>();
+            clientesComparators.add(clienteZelia);
+            clientesComparators.add(clienteMarcos);
+            clientesComparators.add(clienteAna);
+
+            System.out.println("Clientes - ordem original: " + clientesComparators.stream()
+                    .map(Cliente::getNome)
+                    .collect(Collectors.joining(", ")));
+            Collections.sort(clientesComparators, new ClientePorNome());
+            System.out.println("Ordenado por nome: " + clientesComparators.stream()
+                    .map(Cliente::getNome)
+                    .collect(Collectors.joining(", ")));
+            Collections.sort(clientesComparators, new ClientePorEmail());
+            System.out.println("Ordenado por email: " + clientesComparators.stream()
+                    .map(c -> c.getEmail().getValor())
+                    .collect(Collectors.joining(", ")));
+
+            List<Agendamento> agendamentosComparators = new ArrayList<>();
+            LocalDateTime baseInicio = LocalDateTime.of(2025, Month.FEBRUARY, 10, 8, 0);
+            agendamentosComparators.add(new Agendamento(UUID.randomUUID(), clienteMarcos, Estacao.ESTACOES[0],
+                    baseInicio.plusHours(2), baseInicio.plusHours(2).plusMinutes(45),
+                    Dinheiro.of(new BigDecimal("60.00"), BRL)));
+            agendamentosComparators.add(new Agendamento(UUID.randomUUID(), clienteAna, Estacao.ESTACOES[1],
+                    baseInicio.plusHours(1), baseInicio.plusHours(1).plusMinutes(30),
+                    Dinheiro.of(new BigDecimal("55.00"), BRL)));
+            agendamentosComparators.add(new Agendamento(UUID.randomUUID(), clienteZelia, Estacao.ESTACOES[2],
+                    baseInicio.plusHours(3), baseInicio.plusHours(3).plusMinutes(40),
+                    Dinheiro.of(new BigDecimal("65.00"), BRL)));
+
+            System.out.println("Agendamentos - ordem original: " + agendamentosComparators.stream()
+                    .map(a -> a.getCliente().getNome() + " @ " + a.getInicio().toLocalTime())
+                    .collect(Collectors.joining(", ")));
+            Collections.sort(agendamentosComparators, new AgendamentoPorInicio());
+            System.out.println("Agendamentos ordenados por início: " + agendamentosComparators.stream()
+                    .map(a -> a.getCliente().getNome() + " @ " + a.getInicio().toLocalTime())
+                    .collect(Collectors.joining(", ")));
+            Collections.sort(agendamentosComparators, new AgendamentoPorClienteNome());
+            System.out.println("Agendamentos ordenados por nome do cliente: " + agendamentosComparators.stream()
+                    .map(a -> a.getCliente().getNome() + " @ " + a.getInicio().toLocalTime())
+                    .collect(Collectors.joining(", ")));
+
+            return "Comparators demonstrados explicitamente no main";
         });
     }
 
