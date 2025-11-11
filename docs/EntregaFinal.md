@@ -1,30 +1,41 @@
 # Entrega Final – Projeto Barbearia
 
-## Como executar
-- Build: `mvn -q -DskipTests clean package`
-- Rodar: `mvn -q exec:java -Dexec.mainClass=br.ufvjm.barbearia.system.EntregaFinalMain`
-- Saídas: extratos em `data/extratos`, snapshots em `data/`.
+## Passo a passo de execução
+1. Compile o projeto: `mvn -q -DskipTests clean package`.
+2. Rode a rotina dirigida: `mvn -q exec:java -Dexec.mainClass=br.ufvjm.barbearia.system.EntregaFinalMain`.
+3. Extratos serão salvos em `data/extratos/` (um subdiretório por cliente) e snapshots em `data/`.
+4. Para resetar as evidências, limpe a pasta `data/` antes de executar novamente.
 
-## Questões demonstradas no main
-### Questão 1 a 14
-Para cada bloco da `EntregaFinalMain`, o console registra as validações dos cadastros iniciais, configurações de serviços, agendamentos, atualizações de status, movimentação de estoque e geração de extratos. São exibidos prints confirmando criação de clientes, usuários e serviços, a alocação nas estações, entradas na pilha secundária, consumo de produtos e fechamento de contas, permitindo verificar o comportamento esperado para cada uma das primeiras quatorze questões.
+## Evidências exibidas por `EntregaFinalMain`
+Cada bloco imprime `Questao N: OK - ...` quando validado com sucesso. Em caso de falha, o stack trace é exibido para depuração.
 
-### Questão 15 – Iterator vs foreach
-- Trecho utilizado: no `main` de `EntregaFinalMain`, a lista de clientes é percorrida com um `Iterator` explícito antes de usar o laço enhanced `for`.
-- Explicação: `Iterator` expõe um cursor manual (`hasNext`/`next`) que permite remoções seguras enquanto percorre; o `foreach` é açúcar sintático que o compilador traduz para o uso de um `Iterator` implícito.
-- Exemplos: `while (iterator.hasNext()) { Cliente cliente = iterator.next(); ... }` e `for (Cliente cliente : clientes) { ... }`, mostrando ambas as abordagens operando sobre a mesma coleção.
+| Questão | Foco | Evidência impressa |
+|--------|------|---------------------|
+| 1 | Modelagem e relações | IDs cruzados entre cliente, OS, conta e despesa. |
+| 2 | Papéis e autorização | Exceção para colaborador + primeira linha do relatório emitido pelo admin. |
+| 3 | `toString()` | Impressão de objetos de domínio formatados. |
+| 4 | Construtores com `super(...)` | Flags indicando campos herdados preenchidos. |
+| 5 | Estações fixas | Quantidade de posições e lavagem disponível na primeira. |
+| 6 | CRUD usuários | Totais do relatório operacional após cadastro/edição/remoção. |
+| 7 | CRUD clientes | Totais e nome atualizado do cliente. |
+| 8 | Listagem de OS por cliente | Lista de IDs vinculados ao cliente principal. |
+| 9 | Estruturas dinâmicas | Operações `push`/`peek`/`pop` na fila secundária. |
+| 10 | Extratos automáticos | Caminhos dos arquivos gerados para serviço, venda e cancelamento. |
+| 11 | Contadores de serviços | Valores encapsulado vs. protegido com comentário de prós/contras. |
+| 12 | Contador de OS | Total global comparado com o tamanho da lista. |
+| 13 | Comparators em listagens | Sequências ordenadas por e-mail e nome de cliente. |
+| 14 | Persistência JSON | Contagens antes/depois de `saveAll`/`loadAll`. |
+| 15 | Iterator | Logs detalhados do cursor e explicação comparando com `foreach`. |
+| 16 | `Collections.sort` com comparadores distintos | Impressão da ordem original e das duas ordenações. |
+| 17 | `find` x `binarySearch` | Índices retornados e comentário sobre complexidade. |
+| 18 | Pipeline ponta-a-ponta | Cadastros, fila secundária, cancelamentos com retenção de 35%, vendas extras, totais de OS/serviços/estoque, reidratação de extratos. |
 
-### Questão 16 – Comparators e sort
-- O main chama `Collections.sort(clientes, new ClientePorNome())` para ordenar alfabeticamente e, em seguida, `Collections.sort(clientes, new ClientePorEmail())` para reordenar pela chave de e-mail.
-- Cada chamada usa um `Comparator` diferente, o que altera o critério de comparação e, portanto, a sequência resultante na lista.
+## Artefatos gerados
+- **Extratos:** `data/extratos/<cliente>/extrato-*.txt` (serviço, venda e cancelamento).
+- **Snapshot final:** `data/snapshot_final.json` para reidratar o sistema com contadores consistentes.
+- **JavaDoc:** `target/site/apidocs/index.html` (após `mvn -q javadoc:javadoc`).
 
-### Questão 17 – find + binarySearch
-- Antes da busca, o main garante que a lista está ordenada conforme o `Comparator` selecionado para o atributo usado na pesquisa.
-- Em seguida, compara o índice retornado por `find(...)` com o resultado de `Collections.binarySearch(...)`, demonstrando que ambos convergem para o mesmo elemento quando a ordenação está alinhada com o comparador.
-
-### Questão 18 – Fluxo ponta-a-ponta (10 clientes)
-- Pipeline descrito na `EntregaFinalMain`: cadastro massivo de clientes → agendamento nas estações → gerenciamento da fila secundária → cancelamento com retenção → encerramento dos atendimentos → registro de vendas → geração automática de extratos → persistência em snapshot e extratos no disco.
-
-## Observações finais
-- Diagramas e cenários versionados permanecem em `docs/`.
-- Para regenerar a JavaDoc: `mvn -q javadoc:javadoc`.
+## Integração com documentação
+- `docs/cenarios.md` descreve a narrativa usada na Questão 18.
+- `docs/diagramas/README.md` referencia os artefatos de classe e fluxo.
+- `docs/Verificacao_Final.md` apresenta a auditoria realizada neste repositório.

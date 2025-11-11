@@ -48,7 +48,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * Execução dirigida das evidências de implementação.
+ * Classe responsável por demonstrar, em sequência, as dezoito questões exigidas
+ * na entrega final.
+ * <p>
+ * A execução apresenta um formato de relatório no console, indicando "Questao
+ * N: OK" quando a verificação é bem-sucedida e fornecendo evidências textuais
+ * (IDs, totais, caminhos de arquivos) que comprovam cada regra de negócio. Em
+ * caso de erro, a pilha de execução é exibida imediatamente para facilitar o
+ * diagnóstico.
+ * </p>
  */
 public class EntregaFinalMain {
 
@@ -766,11 +774,21 @@ public class EntregaFinalMain {
         });
     }
 
+    /**
+     * Bloco funcional utilizado para encapsular a lógica de cada questão.
+     */
     @FunctionalInterface
     private interface QuestaoExecutor {
         String executar() throws Exception;
     }
 
+    /**
+     * Executa um bloco de demonstração, capturando exceções para sinalizar o
+     * status da questão no console.
+     *
+     * @param numero   identificador da questão (1–18).
+     * @param executor lógica a ser avaliada; deve retornar a evidência textual.
+     */
     private static void executarQuestao(int numero, QuestaoExecutor executor) {
         try {
             String evidencia = executor.executar();
@@ -781,6 +799,13 @@ public class EntregaFinalMain {
         }
     }
 
+    /**
+     * Extrai contagens numéricas impressas no relatório operacional.
+     *
+     * @param relatorio texto completo retornado pelo sistema.
+     * @param prefixo   rótulo a ser localizado.
+     * @return valor inteiro após o prefixo ou {@code 0} caso não esteja presente.
+     */
     private static int extrairContagem(String relatorio, String prefixo) {
         return relatorio.lines()
                 .filter(l -> l.startsWith(prefixo))
@@ -790,6 +815,16 @@ public class EntregaFinalMain {
                 .orElse(0);
     }
 
+    /**
+     * Remove arquivos existentes dentro de um diretório sem apagá-lo.
+     * <p>
+     * A limpeza garante que os extratos gerados nas questões 10 e 18 sejam
+     * criados a partir de um estado conhecido, evitando falsos positivos.
+     * </p>
+     *
+     * @param dir diretório alvo da limpeza.
+     * @throws IOException caso ocorra falha ao excluir ou criar estruturas.
+     */
     private static void limparDiretorio(Path dir) throws IOException {
         if (Files.exists(dir)) {
             try (Stream<Path> stream = Files.walk(dir)) {
