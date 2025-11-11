@@ -697,7 +697,7 @@ public class Sistema {
             if (cliente != null) {
                 cliente.registrarExtrato(arquivo.toString());
             }
-            v.marcarExtratoGerado(LocalDateTime.now(), cliente != null ? arquivo.toString() : "Consumidor final");
+            v.marcarExtratoGerado(LocalDateTime.now(), arquivo.toString());
             Log.info("Extrato de venda gerado em %s para %s", arquivo.toAbsolutePath(), nomeCliente);
         } catch (IOException e) {
             Log.error("Falha ao gerar extrato de venda", e);

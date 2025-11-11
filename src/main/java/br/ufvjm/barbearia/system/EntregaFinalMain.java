@@ -260,6 +260,17 @@ public class EntregaFinalMain {
             String referenciaVenda = venda.getReferenciaExtrato();
             boolean extratoVendaExiste = referenciaVenda != null && Files.exists(Path.of(referenciaVenda));
 
+            Agendamento agendamentoCancelado = sistema.criarAgendamento(UUID.randomUUID(), clientePrincipal,
+                    Estacao.ESTACOES[1],
+                    inicioAtendimento.plusDays(2), inicioAtendimento.plusDays(2).plusMinutes(45),
+                    Dinheiro.of(new BigDecimal("25.00"), BRL));
+            agendamentoCancelado.adicionarItemServico(new ItemDeServico(servicoBarba, servicoBarba.getPreco(),
+                    servicoBarba.getDuracaoMin()));
+            sistema.cancelarAgendamento(colaborador, agendamentoCancelado.getId());
+            String referenciaCancelamento = agendamentoCancelado.getReferenciaExtratoCancelamento();
+            boolean extratoCancelamentoExiste = referenciaCancelamento != null
+                    && Files.exists(Path.of(referenciaCancelamento));
+
             List<String> extratosGerados = new ArrayList<>();
             if (referenciaServico != null) {
                 extratosGerados.add(referenciaServico);
@@ -267,9 +278,13 @@ public class EntregaFinalMain {
             if (referenciaVenda != null) {
                 extratosGerados.add(referenciaVenda);
             }
+            if (referenciaCancelamento != null) {
+                extratosGerados.add(referenciaCancelamento);
+            }
             return "Extratos gerados: " + extratosGerados
                     + " | serviço=" + extratoServicoExiste
-                    + ", venda=" + extratoVendaExiste;
+                    + ", venda=" + extratoVendaExiste
+                    + ", cancelamento=" + extratoCancelamentoExiste;
         });
 
         // Questao 11: Dois contadores de Servico – criar dois serviços e checar contadores (encapsulado e protegido)
