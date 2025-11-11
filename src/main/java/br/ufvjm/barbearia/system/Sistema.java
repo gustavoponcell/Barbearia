@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Deque;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
@@ -98,6 +99,30 @@ public class Sistema {
     private static final ClientePorNome DEFAULT_CLIENTE_COMPARATOR = new ClientePorNome();
     private static final AgendamentoPorInicio DEFAULT_AGENDAMENTO_COMPARATOR = new AgendamentoPorInicio();
     private static final Path EXTRATOS_DIR = Path.of("data/extratos");
+
+    /**
+     * Implementação utilitária de busca linear usando {@link Iterator} e um {@link Comparator}.
+     *
+     * @param lista lista onde a busca será executada.
+     * @param chave elemento de referência para comparar.
+     * @param cmp   critério de comparação que define quando dois elementos são equivalentes.
+     * @param <T>   tipo dos elementos manipulados pela lista.
+     * @return índice do elemento correspondente ou {@code -1} caso não seja encontrado.
+     */
+    public static <T> int find(List<T> lista, T chave, Comparator<? super T> cmp) {
+        Objects.requireNonNull(lista, "lista não pode ser nula");
+        Objects.requireNonNull(chave, "chave não pode ser nula");
+        Objects.requireNonNull(cmp, "comparador não pode ser nulo");
+
+        int idx = 0;
+        for (Iterator<T> it = lista.iterator(); it.hasNext(); idx++) {
+            T atual = it.next();
+            if (cmp.compare(atual, chave) == 0) {
+                return idx;
+            }
+        }
+        return -1;
+    }
 
     public static synchronized void incrementarTotalOS() {
         totalOrdensServico++;
