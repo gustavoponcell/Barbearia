@@ -6,14 +6,18 @@ import br.ufvjm.barbearia.compare.ClientePorEmail;
 import br.ufvjm.barbearia.compare.ClientePorNome;
 import br.ufvjm.barbearia.enums.CategoriaDespesa;
 import br.ufvjm.barbearia.enums.FormaPagamento;
+import br.ufvjm.barbearia.enums.ModoConsumoProduto;
 import br.ufvjm.barbearia.enums.Papel;
+import br.ufvjm.barbearia.enums.StatusAtendimento;
 import br.ufvjm.barbearia.exceptions.PermissaoNegadaException;
 import br.ufvjm.barbearia.model.Agendamento;
 import br.ufvjm.barbearia.model.Cliente;
 import br.ufvjm.barbearia.model.ContaAtendimento;
+import br.ufvjm.barbearia.model.ConsumoDeProduto;
 import br.ufvjm.barbearia.model.Despesa;
 import br.ufvjm.barbearia.model.Estacao;
 import br.ufvjm.barbearia.model.ItemDeServico;
+import br.ufvjm.barbearia.model.ItemContaProduto;
 import br.ufvjm.barbearia.model.ItemVenda;
 import br.ufvjm.barbearia.model.Produto;
 import br.ufvjm.barbearia.model.Servico;
@@ -519,6 +523,246 @@ public class EntregaFinalMain {
                     .collect(Collectors.joining(", "));
 
             return "Lista ordenada: [" + nomesOrdenados + "]";
+        });
+
+        // Questao 18: Pipeline completo de atendimento com fila secundária, cancelamentos e faturamento
+        executarQuestao(18, () -> {
+            System.out.println("\n=== Questao 18: Pipeline completo para 10 clientes ===");
+
+            List<Cliente> clientesPipeline = new ArrayList<>();
+            for (int i = 1; i <= 10; i++) {
+                String telefone = String.format("(33) 9%03d-%04d", 400 + i * 3, 7000 + i);
+                String email = String.format("fluxo%d@barbearia.com", i);
+                String cpf = String.format("200.100.%03d-%02d", 100 + i, 10 + i);
+                Cliente clienteFluxo = new Cliente(UUID.randomUUID(), "Cliente Fluxo " + i, enderecoPadrao,
+                        Telefone.of(telefone), Email.of(email),
+                        CpfHash.fromMasked(cpf), true);
+                sistema.cadastrarCliente(clienteFluxo);
+                clientesPipeline.add(clienteFluxo);
+                System.out.printf("Cliente cadastrado (%02d/10): %s%n", i, clienteFluxo.getNome());
+            }
+
+            Servico servicoColoracao = new Servico(UUID.randomUUID(), "Coloração Premium",
+                    Dinheiro.of(new BigDecimal("150.00"), BRL), 90, true);
+            Servico servicoRelaxamento = new Servico(UUID.randomUUID(), "Massagem Relaxante",
+                    Dinheiro.of(new BigDecimal("80.00"), BRL), 40, false);
+            Servico servicoHidratacao = new Servico(UUID.randomUUID(), "Hidratação Capilar",
+                    Dinheiro.of(new BigDecimal("95.00"), BRL), 60, true);
+            sistema.cadastrarServico(servicoColoracao);
+            sistema.cadastrarServico(servicoRelaxamento);
+            sistema.cadastrarServico(servicoHidratacao);
+
+            List<Servico> servicosDisponiveis = new ArrayList<>();
+            servicosDisponiveis.add(servicoCorte);
+            servicosDisponiveis.add(servicoBarba);
+            servicosDisponiveis.add(servicoColoracao);
+            servicosDisponiveis.add(servicoRelaxamento);
+            servicosDisponiveis.add(servicoHidratacao);
+
+            Produto produtoTonico = new Produto(UUID.randomUUID(), "Tônico Refrescante", "TON-010",
+                    Quantidade.of(new BigDecimal("25"), "UN"),
+                    Quantidade.of(new BigDecimal("5"), "UN"),
+                    Dinheiro.of(new BigDecimal("45.00"), BRL),
+                    Dinheiro.of(new BigDecimal("22.00"), BRL));
+            Produto produtoShampoo = new Produto(UUID.randomUUID(), "Shampoo Detox", "SHA-020",
+                    Quantidade.of(new BigDecimal("30"), "UN"),
+                    Quantidade.of(new BigDecimal("8"), "UN"),
+                    Dinheiro.of(new BigDecimal("55.00"), BRL),
+                    Dinheiro.of(new BigDecimal("28.00"), BRL));
+            Produto produtoOleo = new Produto(UUID.randomUUID(), "Óleo para Barba", "OLE-030",
+                    Quantidade.of(new BigDecimal("18"), "UN"),
+                    Quantidade.of(new BigDecimal("4"), "UN"),
+                    Dinheiro.of(new BigDecimal("60.00"), BRL),
+                    Dinheiro.of(new BigDecimal("30.00"), BRL));
+            sistema.cadastrarProduto(produtoTonico);
+            sistema.cadastrarProduto(produtoShampoo);
+            sistema.cadastrarProduto(produtoOleo);
+
+            List<Produto> produtosDisponiveis = new ArrayList<>();
+            produtosDisponiveis.add(produtoCera);
+            produtosDisponiveis.add(produtoTonico);
+            produtosDisponiveis.add(produtoShampoo);
+            produtosDisponiveis.add(produtoOleo);
+
+            List<Agendamento> agendamentosRegistrados = new ArrayList<>();
+            List<Agendamento> filaSecundaria = new ArrayList<>();
+            LocalDateTime baseFluxo = LocalDateTime.of(2025, Month.JANUARY, 20, 9, 0);
+
+            for (int i = 0; i < clientesPipeline.size(); i++) {
+                Cliente cliente = clientesPipeline.get(i);
+                Servico servicoPrincipal = servicosDisponiveis.get(i % servicosDisponiveis.size());
+                LocalDateTime inicio = baseFluxo.plusHours(i);
+                LocalDateTime fim = inicio.plusMinutes(servicoPrincipal.getDuracaoMin());
+                Dinheiro sinal = Dinheiro.of(BigDecimal.valueOf(20 + (i * 5L)), BRL);
+
+                Agendamento agendamento = new Agendamento(UUID.randomUUID(), cliente,
+                        Estacao.ESTACOES[i % Estacao.ESTACOES.length], inicio, fim, sinal);
+                agendamento.associarBarbeiro(colaborador);
+
+                ItemDeServico itemPrincipal = new ItemDeServico(servicoPrincipal, servicoPrincipal.getPreco(),
+                        servicoPrincipal.getDuracaoMin());
+                agendamento.adicionarItemServico(itemPrincipal);
+                if (i % 3 == 0) {
+                    Servico adicional = servicosDisponiveis.get((i + 1) % servicosDisponiveis.size());
+                    agendamento.adicionarItemServico(new ItemDeServico(adicional, adicional.getPreco(),
+                            adicional.getDuracaoMin()));
+                }
+
+                if (i >= 7) {
+                    sistema.adicionarAgendamentoSecundario(agendamento);
+                    filaSecundaria.add(agendamento);
+                    System.out.printf("Agendamento %s enviado para fila secundária.%n", cliente.getNome());
+                } else {
+                    sistema.realizarAgendamento(agendamento);
+                    agendamentosRegistrados.add(agendamento);
+                    System.out.printf("Agendamento confirmado: %s @ %s%n",
+                            cliente.getNome(), agendamento.getInicio());
+                }
+            }
+
+            System.out.printf("Total inicial -> OS ativas: %d | em fila secundária: %d%n",
+                    agendamentosRegistrados.size(), filaSecundaria.size());
+            sistema.inspecionarFilaSecundaria();
+
+            List<Agendamento> cancelados = new ArrayList<>();
+            if (!agendamentosRegistrados.isEmpty()) {
+                Agendamento cancelado1 = agendamentosRegistrados.get(1);
+                Agendamento.Cancelamento cancelamento1 = sistema.cancelarAgendamento(colaborador, cancelado1.getId());
+                cancelados.add(cancelado1);
+                System.out.printf("Cancelamento aplicado para %s -> retenção: %s | reembolso: %s%n",
+                        cancelado1.getCliente().getNome(), cancelamento1.getValorRetencao(),
+                        cancelamento1.getValorReembolso());
+
+                sistema.inspecionarFilaSecundaria();
+                Agendamento promovido1 = sistema.recuperarAgendamentoSecundario();
+                sistema.realizarAgendamento(promovido1);
+                agendamentosRegistrados.add(promovido1);
+                filaSecundaria.remove(promovido1);
+                System.out.printf("Promovido da fila secundária: %s assumiu a vaga liberada.%n",
+                        promovido1.getCliente().getNome());
+            }
+
+            Agendamento cancelarOutro = agendamentosRegistrados.stream()
+                    .filter(ag -> ag.getStatus() != StatusAtendimento.CANCELADO)
+                    .skip(2)
+                    .findFirst()
+                    .orElse(null);
+            if (cancelarOutro != null) {
+                Agendamento.Cancelamento cancelamento2 = sistema.cancelarAgendamento(colaborador, cancelarOutro.getId());
+                cancelados.add(cancelarOutro);
+                System.out.printf("Segundo cancelamento (%s) -> retenção: %s%n",
+                        cancelarOutro.getCliente().getNome(), cancelamento2.getValorRetencao());
+
+                sistema.inspecionarFilaSecundaria();
+                Agendamento promovido2 = sistema.recuperarAgendamentoSecundario();
+                sistema.realizarAgendamento(promovido2);
+                agendamentosRegistrados.add(promovido2);
+                filaSecundaria.remove(promovido2);
+                System.out.printf("Novo atendimento promovido: %s agora na agenda principal.%n",
+                        promovido2.getCliente().getNome());
+            }
+
+            if (!filaSecundaria.isEmpty()) {
+                sistema.inspecionarFilaSecundaria();
+                Agendamento promovidoExtra = sistema.recuperarAgendamentoSecundario();
+                sistema.realizarAgendamento(promovidoExtra);
+                agendamentosRegistrados.add(promovidoExtra);
+                filaSecundaria.remove(promovidoExtra);
+                System.out.printf("Fila secundária zerada com promoção extra para %s.%n",
+                        promovidoExtra.getCliente().getNome());
+            }
+
+            List<Agendamento> agendamentosParaFechamento = agendamentosRegistrados.stream()
+                    .filter(ag -> ag.getStatus() != StatusAtendimento.CANCELADO)
+                    .collect(Collectors.toList());
+
+            int indiceConta = 0;
+            for (Agendamento agendamento : agendamentosParaFechamento) {
+                agendamento.alterarStatus(StatusAtendimento.EM_ATENDIMENTO);
+                agendamento.alterarStatus(StatusAtendimento.CONCLUIDO);
+
+                ContaAtendimento conta = sistema.buscarContaPorAgendamento(agendamento.getId())
+                        .orElseGet(() -> sistema.criarContaAtendimento(agendamento));
+
+                Produto produtoConsumo = produtosDisponiveis.get(indiceConta % produtosDisponiveis.size());
+                String unidadeProduto = produtoConsumo.getEstoqueAtual().getUnidade();
+                Quantidade quantidadeConsumo = Quantidade.of(BigDecimal.ONE, unidadeProduto);
+                produtoConsumo.movimentarSaida(quantidadeConsumo);
+                agendamento.getItens().get(0).registrarConsumo(
+                        new ConsumoDeProduto(produtoConsumo, quantidadeConsumo, ModoConsumoProduto.FATURADO));
+                conta.adicionarProdutoFaturado(new ItemContaProduto(produtoConsumo, quantidadeConsumo,
+                        produtoConsumo.getPrecoVenda()));
+
+                if (indiceConta % 2 == 0) {
+                    Servico upgrade = servicosDisponiveis.get((indiceConta + 2) % servicosDisponiveis.size());
+                    conta.adicionarServicoFaturado(new ItemDeServico(upgrade, upgrade.getPreco(),
+                            upgrade.getDuracaoMin()));
+                }
+
+                conta.calcularTotal(agendamento.totalServicos());
+
+                FormaPagamento forma = switch (indiceConta % 3) {
+                    case 0 -> FormaPagamento.CARTAO_CREDITO;
+                    case 1 -> FormaPagamento.PIX;
+                    default -> FormaPagamento.DINHEIRO;
+                };
+                sistema.fecharContaAtendimento(colaborador, agendamento.getId(), forma);
+                System.out.printf("Conta fechada para %s (%s) com pagamento via %s%n",
+                        agendamento.getCliente().getNome(), agendamento.getId(), forma);
+                indiceConta++;
+            }
+
+            int vendasRegistradas = 0;
+            for (int i = 0; i < clientesPipeline.size(); i += 3) {
+                Cliente cliente = clientesPipeline.get(i);
+                Produto produtoVenda = produtosDisponiveis.get((i + 1) % produtosDisponiveis.size());
+                String unidade = produtoVenda.getEstoqueAtual().getUnidade();
+                Quantidade quantidadeVenda = Quantidade.of(new BigDecimal("2"), unidade);
+                produtoVenda.movimentarSaida(quantidadeVenda);
+
+                Venda venda = new Venda(UUID.randomUUID(), cliente, baseFluxo.plusDays(1).plusHours(i),
+                        FormaPagamento.CARTAO_DEBITO);
+                venda.adicionarItem(new ItemVenda(produtoVenda, quantidadeVenda, produtoVenda.getPrecoVenda()));
+                venda.calcularTotal();
+                sistema.registrarVenda(colaborador, venda);
+                vendasRegistradas++;
+                System.out.printf("Venda adicional registrada: %s comprou %s (%s unidades).%n",
+                        cliente.getNome(), produtoVenda.getNome(), quantidadeVenda.getValor());
+            }
+
+            int totalOsCriadas = Sistema.getTotalOrdensServicoCriadas();
+            int totalServicosCriados = Sistema.getTotalServicos();
+            System.out.printf("Totais globais -> OS: %d | Serviços catalogados: %d%n",
+                    totalOsCriadas, totalServicosCriados);
+
+            System.out.println("Estoque restante após atendimentos e vendas:");
+            for (Produto produto : produtosDisponiveis) {
+                System.out.printf("- %s (%s): %s%n", produto.getNome(), produto.getSku(), produto.getEstoqueAtual());
+            }
+
+            long extratosAntesLoad = 0;
+            for (Cliente cliente : clientesPipeline) {
+                List<String> extratosCliente = cliente.getExtratosGerados();
+                extratosAntesLoad += extratosCliente.size();
+                System.out.printf("Extratos gerados para %s (%d): %s%n", cliente.getNome(), extratosCliente.size(),
+                        extratosCliente.isEmpty() ? "(nenhum)" : String.join(" | ", extratosCliente));
+            }
+
+            Path snapshotFinal = Path.of("data", "snapshot_final.json");
+            sistema.saveAll(admin, snapshotFinal);
+            System.out.printf("Snapshot salvo em: %s%n", snapshotFinal.toAbsolutePath());
+
+            sistema.loadAll(snapshotFinal);
+            List<Cliente> clientesReidratados = sistema.listarClientesOrdenados();
+            long extratosPosLoad = clientesReidratados.stream()
+                    .mapToLong(c -> c.getExtratosGerados().size())
+                    .sum();
+            System.out.printf("Reidratação concluída -> clientes=%d | OS=%d | Serviços=%d | Extratos=%d%n",
+                    clientesReidratados.size(), Sistema.getTotalOrdensServicoCriadas(),
+                    Sistema.getTotalServicos(), extratosPosLoad);
+
+            return String.format("Pipeline finalizado com %d cancelamentos, %d vendas adicionais e %d extratos gerados",
+                    cancelados.size(), vendasRegistradas, extratosPosLoad);
         });
     }
 
