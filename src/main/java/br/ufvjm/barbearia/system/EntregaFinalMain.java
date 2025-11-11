@@ -363,17 +363,53 @@ public class EntregaFinalMain {
                     + ", vendas " + vendasAntes + "->" + vendasDepois;
         });
 
-        // Questao 15: Iterator (demonstração leve; Q15 completo virá no PROMPT 2)
+        // Questao 15: Iterator – instanciar ArrayList<Cliente>, percorrer com Iterator e comparar com foreach
         executarQuestao(15, () -> {
-            List<Cliente> clientes = sistema.listarClientesOrdenados();
-            Iterator<Cliente> iterator = clientes.iterator();
-            List<String> primeiros = new ArrayList<>();
-            int limite = 0;
-            while (iterator.hasNext() && limite < 3) {
-                primeiros.add(iterator.next().getNome());
-                limite++;
+            List<Cliente> clientesIterator = new ArrayList<>();
+            clientesIterator.add(new Cliente(UUID.randomUUID(), "Alice Iteradora", enderecoPadrao,
+                    Telefone.of("(33) 90000-0001"), Email.of("alice.iterator@barbearia.com"),
+                    CpfHash.fromMasked("111.222.333-44"), true));
+            clientesIterator.add(new Cliente(UUID.randomUUID(), "Bruno Cursor", enderecoPadrao,
+                    Telefone.of("(33) 90000-0002"), Email.of("bruno.cursor@barbearia.com"),
+                    CpfHash.fromMasked("555.666.777-88"), true));
+            clientesIterator.add(new Cliente(UUID.randomUUID(), "Carla Foreach", enderecoPadrao,
+                    Telefone.of("(33) 90000-0003"), Email.of("carla.foreach@barbearia.com"),
+                    CpfHash.fromMasked("999.000.111-22"), true));
+
+            StringBuilder demonstracao = new StringBuilder();
+            demonstracao.append("Lista de demonstração contém ")
+                    .append(clientesIterator.size())
+                    .append(" cliente(s).")
+                    .append(System.lineSeparator());
+
+            Iterator<Cliente> iterator = clientesIterator.iterator();
+            int indice = 0;
+            while (iterator.hasNext()) {
+                Cliente clienteAtual = iterator.next();
+                demonstracao.append("[Iterator] cursor avança para índice ")
+                        .append(indice)
+                        .append(": ")
+                        .append(clienteAtual.getNome())
+                        .append(System.lineSeparator());
+                indice++;
             }
-            return "Iterador clientes (até 3): " + primeiros;
+
+            demonstracao.append("O Iterator mantém um cursor entre os elementos; hasNext() verifica se há próximo e next()")
+                    .append(" desloca o cursor, retornando o registro atual. Alterar a lista sem usar o próprio Iterator durante a")
+                    .append(" iteração quebra o contrato e pode lançar ConcurrentModificationException.")
+                    .append(System.lineSeparator());
+
+            demonstracao.append("O foreach compila para o mesmo mecanismo de Iterator, mas com sintaxe mais simples:")
+                    .append(System.lineSeparator());
+            for (Cliente cliente : clientesIterator) {
+                demonstracao.append("[foreach] Encontrado: ")
+                        .append(cliente.getNome())
+                        .append(System.lineSeparator());
+            }
+
+            demonstracao.append("foreach usa internamente clientesIterator.iterator(), chamando hasNext()/next() automaticamente.");
+
+            return demonstracao.toString();
         });
     }
 
