@@ -522,6 +522,17 @@ public class Sistema {
         return agendamento;
     }
 
+    /**
+     * Registra um agendamento já construído, respeitando os contadores globais.
+     * <p>
+     * O método é utilizado tanto pelo fluxo padrão de criação quanto pela
+     * promoção de agendamentos vindos da fila secundária. O incremento do
+     * contador de OS acontece em um único ponto para garantir consistência
+     * estatística.
+     * </p>
+     *
+     * @param ag agendamento validado a ser incluído na agenda.
+     */
     public void realizarAgendamento(Agendamento ag) {
         registrarAgendamento(Objects.requireNonNull(ag, "agendamento não pode ser nulo"));
     }
@@ -546,12 +557,27 @@ public class Sistema {
         return ordenarERecortar(agendamentos, criterio, offset, limit);
     }
 
+    /**
+     * Insere um agendamento na fila secundária (estrutura LIFO).
+     *
+     * @param ag agendamento aguardando vaga na agenda principal.
+     */
     public void adicionarAgendamentoSecundario(Agendamento ag) {
         filaSecundaria.push(Objects.requireNonNull(ag, "agendamento não pode ser nulo"));
         String clienteNome = ag.getCliente() != null ? ag.getCliente().getNome() : "(sem cliente)";
         Log.info("Agendamento movido para fila secundária: %s (%s)", ag.getId(), clienteNome);
     }
 
+    /**
+     * Visualiza o topo da fila secundária sem removê-lo.
+     * <p>
+     * Implementa o comportamento de {@code peek()}, necessário para o roteiro
+     * didático da questão 18. Logs informam se a fila está vazia ou qual cliente
+     * aguarda promoção.
+     * </p>
+     *
+     * @return {@link Optional} contendo o agendamento no topo ou vazio se a fila estiver vazia.
+     */
     public Optional<Agendamento> inspecionarFilaSecundaria() {
         Agendamento topo = filaSecundaria.peek();
         if (topo == null) {
@@ -563,6 +589,12 @@ public class Sistema {
         return Optional.ofNullable(topo);
     }
 
+    /**
+     * Recupera o agendamento no topo da fila secundária, removendo-o.
+     *
+     * @return agendamento promovido para agenda principal.
+     * @throws NoSuchElementException quando a fila está vazia.
+     */
     public Agendamento recuperarAgendamentoSecundario() {
         if (filaSecundaria.isEmpty()) {
             throw new NoSuchElementException("Não há agendamentos na fila secundária");
@@ -570,10 +602,25 @@ public class Sistema {
         return filaSecundaria.pop();
     }
 
+    /**
+     * Cancela uma ordem de serviço aplicando retenção de 35% sobre o total.
+     * <p>
+     * A retenção é definida por {@link #RETENCAO_CANCELAMENTO} e representa a
+     * multa cobrada da entrada paga pelo cliente. O método garante que o valor
+     * retido seja registrado em {@link ContaAtendimento}, movimenta o
+     * {@link CaixaDiario} do dia e gera automaticamente o extrato textual do
+     * cancelamento para fins de auditoria.
+     * </p>
+     *
+     * @param solicitante   colaborador ou administrador responsável pela operação.
+     * @param agendamentoId identificador da OS a ser cancelada.
+     * @return objeto contendo percentual de retenção, total dos serviços e valores retido/reembolsado.
+     */
     public Agendamento.Cancelamento cancelarAgendamento(Usuario solicitante, UUID agendamentoId) {
         assertColaboradorOuAdmin(solicitante);
         Objects.requireNonNull(agendamentoId, "agendamentoId não pode ser nulo");
         Agendamento agendamento = localizarAgendamento(agendamentoId);
+        // Política financeira: retenção fixa de 35% sobre os serviços contratados.
         Agendamento.Cancelamento cancelamento = agendamento.cancelar(RETENCAO_CANCELAMENTO);
         ContaAtendimento conta = buscarContaPorAgendamento(agendamentoId)
                 .orElseGet(() -> criarContaAtendimento(agendamento));
@@ -657,6 +704,11 @@ public class Sistema {
     }
 
     // 🔹 Extratos
+    /**
+     * Gera o extrato textual do atendimento, associando-o ao cliente e à conta.
+     *
+     * @param conta conta de atendimento cujo extrato será materializado.
+     */
     public void gerarExtratoServico(ContaAtendimento conta) {
         Objects.requireNonNull(conta, "conta não pode ser nula");
         if (conta.isExtratoServicoGerado()) {
@@ -700,6 +752,11 @@ public class Sistema {
         }
     }
 
+    /**
+     * Gera o extrato de uma venda de produtos associada a um cliente.
+     *
+     * @param v venda que terá o comprovante gravado em disco.
+     */
     public void gerarExtratoVenda(Venda v) {
         Objects.requireNonNull(v, "venda não pode ser nula");
         if (v.isExtratoGerado()) {
@@ -730,6 +787,12 @@ public class Sistema {
         }
     }
 
+    /**
+     * Cria o extrato relativo ao cancelamento de um agendamento com retenção.
+     *
+     * @param agendamento agendamento cancelado.
+     * @param cancelamento dados financeiros calculados durante o cancelamento.
+     */
     public void gerarExtratoCancelamento(Agendamento agendamento, Agendamento.Cancelamento cancelamento) {
         Objects.requireNonNull(agendamento, "agendamento não pode ser nulo");
         Objects.requireNonNull(cancelamento, "cancelamento não pode ser nulo");
@@ -757,6 +820,12 @@ public class Sistema {
     }
 
     // 🔹 Persistência
+    /**
+     * Persiste um snapshot completo do sistema no caminho informado.
+     *
+     * @param solicitante usuário com papel {@code ADMIN} responsável pela operação.
+     * @param path        destino do arquivo JSON.
+     */
     public void saveAll(Usuario solicitante, Path path) {
         assertAdmin(solicitante);
         Objects.requireNonNull(path, "path não pode ser nulo");
@@ -781,6 +850,11 @@ public class Sistema {
         }
     }
 
+    /**
+     * Carrega um snapshot previamente salvo, reidratando coleções e contadores.
+     *
+     * @param path caminho do arquivo JSON produzido por {@link #saveAll(Usuario, Path)}.
+     */
     public void loadAll(Path path) {
         Objects.requireNonNull(path, "path não pode ser nulo");
         try {
