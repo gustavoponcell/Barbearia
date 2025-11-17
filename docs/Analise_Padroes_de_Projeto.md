@@ -1,245 +1,224 @@
-# Análise de Padrões de Projeto do Sistema de Barbearia
+# Análise de Padrão de Projeto — Strategy no Sistema Barbearia
 
-**Data:** 2025-11-17
+## Introdução
+O sistema Barbearia é uma aplicação Java/Maven para gestão de uma barbearia com três estações fixas, agenda de ordens de serviço (OS), controle de loja/estoque, geração automática de extratos, permissões por papel e uma fila secundária (pilha LIFO) para realocar atendimentos. O núcleo (`Sistema`) mantém coleções em memória, faz a persistência via JSON e coordena regras como cancelamento com retenção de 35% e realocação de clientes.
 
-## Resumo do objetivo
-Avaliar a presença dos padrões solicitados no código do projeto Barbearia (Java/Maven), justificar cada ocorrência com evidências e recomendar adoções úteis.
+O padrão Strategy define uma família de algoritmos, encapsula cada um e os torna intercambiáveis em tempo de execução, permitindo variar o comportamento sem alterar o cliente que os utiliza. É usado quando há múltiplas políticas para a mesma tarefa (ex.: ordenação, precificação) e evita condicionais extensas ao aderir ao Princípio Aberto/Fechado.
 
-## Sumário
-- [Metodologia de Detecção](#metodologia-de-detecção)
-- [Mapa Rápido (Tabela de Achados)](#mapa-rápido-tabela-de-achados)
-- [Análise Detalhada por Padrão](#análise-detalhada-por-padrão)
-- [Top Recomendações](#top-recomendações)
-- [Tabela Benefício vs Complexidade](#tabela-benefício-vs-complexidade)
-- [Passos de Adoção Recomendados (Backlog)](#passos-de-adoção-recomendados-backlog)
-- [Conclusão](#conclusão)
+## Objetivo
+Descrever como o Strategy aparece hoje no projeto (principalmente por meio dos `Comparator<T>`) e como pode ser aplicado em outros pontos para maximizar benefícios, como políticas de cancelamento/retensão, alocação de estações e precificação/descontos.
 
-## Metodologia de Detecção
-- Varredura manual dos pacotes `system`, `model`, `compare`, `persist`, `value`, `enums` e utilitários presentes, lendo classes-chave com foco nos sinais típicos de cada padrão.
-- Critérios de evidência: **forte** (estrutura clássica completa, interfaces específicas e uso claro), **média** (parcial ou utilitários que cumprem o papel sem separação formal), **fraca** (apenas indícios ou comentários).
-- Heurísticas: interfaces + múltiplas implementações para Strategy/Adapter; objetos imutáveis com construtor privado + estático para Factory Method; enums + validação de transições para State; builders para agregados grandes; classes de persistência isoladas para DAO.
+## Materiais e Métodos
+A análise percorreu os diretórios `compare/**`, `system/**`, `model/**` e `persist/**`, inspecionando classes e pontos de uso. Os critérios para identificar Strategy foram: existência de um contrato comum, múltiplas implementações intercambiáveis, seleção em tempo de execução via parâmetro/atributo, redução de `if/switch` e aderência ao Open/Closed Principle.
 
-## Mapa Rápido (Tabela de Achados)
-| Padrão | Detectado? | Confiança | Onde (arquivo:linhas) | Comentário curto |
-| --- | --- | --- | --- | --- |
-| Composite | Não | – | – | Estruturas usam listas simples, sem interface composta. |
-| Decorator | Não | – | – | Não há envelopamento incremental de comportamento. |
-| Factory Method | Parcial | Média | `value/Dinheiro.java`:24-52 | Métodos estáticos `of` criam instâncias validadas. |
-| Abstract Factory | Não | – | – | Não há fábricas famílias/coerentes. |
-| Adapter | Sim | Alta | `persist/adapters/DinheiroAdapter.java`:13-79 | Gson TypeAdapters adaptam VO para JSON. |
-| Chain of Responsibility | Não | – | – | Fluxos diretos sem cadeia de handlers. |
-| Prototype | Não | – | – | Sem clonagem profunda/protótipos. |
-| Singleton | Não | – | – | `Sistema` é instanciável; sem controle de instância única. |
-| DAO | Parcial | Média | `persist/JsonStorage.java`:22-105 | Classe dedicada de acesso a armazenamento JSON. |
-| Bridge | Não | – | – | Não há separação de abstração/implementação. |
-| Memento | Não | – | – | Sem snapshots reversíveis além de DTO estático. |
-| Command | Não | – | – | Operações são métodos diretos, sem objetos comando. |
-| State | Parcial | Média | `model/Agendamento.java`:121-153 | Enum + validação de transições encapsulam estados. |
-| Strategy | Sim | Alta | `compare/*`:11-25 | Comparators intercambiáveis para ordenação. |
-| Observer | Não | – | – | Não há publicação/assinatura de eventos. |
-| Builder | Sim | Alta | `persist/DataSnapshot.java`:129-207 | Builder encadeado para montar snapshot. |
-| Flyweight | Não | – | – | Nenhum compartilhamento interno otimizado. |
-| Interpreter | Não | – | – | Não há gramáticas/parse custom. |
+## Resultados e Discussão
+### 4.1 Evidências de Strategy já presentes
+As estratégias de ordenação são implementadas via `Comparator<T>`, com seleção em tempo de execução:
 
-## Análise Detalhada por Padrão
-### Composite
-- **Definição:** composição recursiva de objetos (parte-todo) com interface unificada.
-- **Sinais procurados:** interfaces comuns para item/contêiner, operações delegadas recursivamente.
-- **Evidências:** não identificadas; listas de itens em `ContaAtendimento` e `Agendamento` são agregações simples sem interface composta.
-- **Avaliação:** não implementado.
-- **Recomendação:** apenas se surgir hierarquia real (ex.: pacotes de serviços). Complexidade média; hoje não é necessário.
-
-### Decorator
-- **Definição:** adiciona responsabilidades dinamicamente via composição.
-- **Sinais procurados:** classes que recebem componente e repassam chamadas.
-- **Evidências:** ausentes.
-- **Avaliação:** não aplicável.
-- **Recomendação:** sem necessidade atual.
-
-### Factory Method
-- **Definição:** método que cria objetos, permitindo controle/extensão do tipo retornado.
-- **Sinais procurados:** construtor privado + métodos estáticos nomeados.
-- **Evidências:** `Dinheiro.of` valida entradas e controla criação de VO monetário, encapsulando arredondamento e obrigatoriedade de moeda.【F:src/main/java/br/ufvjm/barbearia/value/Dinheiro.java†L11-L52】 Métodos `AjusteConta.credito/debito` e `ContaAtendimento.Cancelamento` seguem ideia, mas sem hierarquia.
-- **Avaliação:** uso utilitário (evidência média); não há sobrecarga por subtipo.
-- **Recomendação:** manter; considerar fábricas nomeadas para outras entidades com validação (p.ex. `Agendamento.createComValidacao`). Complexidade baixa.
-
-### Abstract Factory
-- **Definição:** cria famílias de objetos relacionados sem expor classes concretas.
-- **Sinais procurados:** interfaces fábrica com múltiplas implementações (ex.: persistência em JSON vs BD).
-- **Evidências:** não há.
-- **Avaliação:** não implementado.
-- **Recomendação:** poderia ser útil se surgir persistência alternativa (JSON/SQL). Complexidade média.
-
-### Adapter
-- **Definição:** converte interface de um tipo para outra esperada pelo cliente.
-- **Sinais procurados:** classes “Adapter” delegando conversão.
-- **Evidências:** Gson `TypeAdapter` para `Dinheiro` adapta VO para JSON primitivo e vice-versa.【F:src/main/java/br/ufvjm/barbearia/persist/adapters/DinheiroAdapter.java†L13-L79】 Similar para `LocalDate`, `LocalDateTime`, `YearMonth` (mesmo padrão de registro em `JsonStorage`).
-- **Avaliação:** implementação correta; reduz acoplamento de VO ao framework de serialização.
-- **Recomendação:** nenhum ajuste imediato; manter adapters separados para novos VOs.
-
-### Chain of Responsibility
-- **Definição:** cadeia de handlers para processar requisições até alguém tratá-las.
-- **Evidências:** não presentes; validações e regras são diretas.
-- **Recomendação:** pode ser útil para pipelines de autorização/validação em `Sistema` (ex.: cancelamento). Complexidade média.
-
-### Prototype
-- **Definição:** cria novos objetos copiando protótipos existentes.
-- **Evidências:** inexistentes.
-- **Recomendação:** desnecessário; entidades são simples e identificadas por UUID.
-
-### Singleton
-- **Definição:** garante única instância acessível globalmente.
-- **Evidências:** `Sistema` é instanciável e não controla unicidade; utilitários estáticos (`JsonStorage`, `ExtratoIO`) não mantêm estado.
-- **Recomendação:** manter sem singleton para favorecer testes; se interface gráfica precisar, injetar instância explicitamente. Complexidade baixa, benefício baixo.
-
-### DAO (Data Access Object)
-- **Definição:** encapsula acesso a dados, isolando infraestrutura do domínio.
-- **Sinais procurados:** classe responsável por CRUD/persistência de entidades ou agregados.
-- **Evidências:** `JsonStorage` centraliza salvar/carregar `DataSnapshot`, abstraindo `Gson` e filesystem do domínio.【F:src/main/java/br/ufvjm/barbearia/persist/JsonStorage.java†L21-L105】 Contudo, mistura conversão (DTO) e acesso a arquivo, sem interface.
-- **Avaliação:** implementação parcial (um DAO global). Falta especialização por entidade e interface para troca de tecnologia.
-- **Recomendação:** extrair interface `SnapshotRepository` e separar concern de serialização (mapper) do I/O. Complexidade média.
-
-### Bridge
-- **Definição:** separa abstração da implementação permitindo variações independentes.
-- **Evidências:** inexistentes.
-- **Recomendação:** não necessário no escopo atual.
-
-### Memento
-- **Definição:** captura e restaura estado interno sem violar encapsulamento.
-- **Evidências:** `DataSnapshot` é DTO persistido, mas não há mecanismo de restauração incremental/undo; é mais uma transferência de estado.
-- **Avaliação:** não implementado.
-- **Recomendação:** só faria sentido se fosse necessário rollback/undo de operações. Complexidade média/alta.
-
-### Command
-- **Definição:** encapsula uma operação como objeto, permitindo fila, undo, logging.
-- **Evidências:** operações críticas (`registrarVenda`, `fecharContaAtendimento`) são métodos diretos em `Sistema`, sem objetos comando.
-- **Avaliação:** não implementado.
-- **Recomendação:** ver Top Recomendações para encapsular operações sensíveis. Complexidade média.
-
-### State
-- **Definição:** altera comportamento conforme estado interno encapsulado em objetos/enum.
-- **Sinais procurados:** enum/objetos de estado com regras de transição.
-- **Evidências:** `Agendamento` mantém `StatusAtendimento` e valida transições permitidas (`EM_ESPERA → EM_ATENDIMENTO → CONCLUIDO` ou cancelamento a qualquer momento) no método `alterarStatus`/`transicaoValida`.【F:src/main/java/br/ufvjm/barbearia/model/Agendamento.java†L121-L153】
-- **Avaliação:** abordagem simples (enum + guarda). Poderia evoluir para classes de estado com regras específicas (ex.: side effects de cancelamento).
-- **Recomendação:** manter, mas extrair lógica de transição para estratégia de estado se regras crescerem.
-
-### Strategy
-- **Definição:** encapsula algoritmos intercambiáveis sob a mesma interface.
-- **Evidências:** Comparators (`AgendamentoPorInicio`, `ClientePorNome`, etc.) implementam `Comparator` e são injetados em listagens/relatórios no `Sistema`, permitindo ordenações variadas.【F:src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorInicio.java†L1-L25】
-- **Avaliação:** implementação clara; uso adequado em relatórios.
-- **Recomendação:** manter; adicionar políticas de precificação/retencao como estratégias se necessário.
-
-### Observer
-- **Definição:** notifica múltiplos interessados sobre eventos.
-- **Evidências:** inexistentes; geração de extratos é chamada diretamente após operações.
-- **Recomendação:** ver Top Recomendações para automatizar disparos (ex.: `VendaRegistradaEvent`). Complexidade média.
-
-### Builder
-- **Definição:** construção passo a passo de objetos complexos, preservando imutabilidade.
-- **Evidências:** `DataSnapshot.Builder` com métodos `with*` e `build` encadeados para montar snapshot completo sem construtor gigante.【F:src/main/java/br/ufvjm/barbearia/persist/DataSnapshot.java†L129-L207】
-- **Avaliação:** implementação correta e útil para testes/persistência.
-- **Recomendação:** ampliar para entidades com muitos campos opcionais (ex.: `ContaAtendimento` configurada antes de uso). Complexidade baixa.
-
-### Flyweight
-- **Definição:** compartilha dados imutáveis para reduzir consumo de memória.
-- **Evidências:** não há; entidades são instanciadas diretamente.
-- **Recomendação:** desnecessário hoje.
-
-### Interpreter
-- **Definição:** define gramática e interpretador para linguagem específica.
-- **Evidências:** ausentes.
-- **Recomendação:** não aplicável.
-
-## Top Recomendações
-1. **Command para operações críticas (registrar venda, fechar conta, cancelar com retenção)**
-   - **Problema:** lógica sensível concentrada em `Sistema`, difícil de auditar/undo.
-   - **Onde aplicar:** novo pacote `br.ufvjm.barbearia.command` com comandos `RegistrarVendaCommand`, `FecharContaCommand`, `CancelarAgendamentoCommand`; invocação em `Sistema`.
-   - **Esqueleto:**
+1. **ClientePorNome** (`br.ufvjm.barbearia.compare.ClientePorNome`)
+   - Arquivo/linhas: `src/main/java/br/ufvjm/barbearia/compare/ClientePorNome.java`:1-34. 【F:src/main/java/br/ufvjm/barbearia/compare/ClientePorNome.java†L1-L34】
+   - Trecho:
      ```java
-     public interface Command<R> { R execute(); }
+     @Override
+     public int compare(Cliente cliente1, Cliente cliente2) {
+         Objects.requireNonNull(cliente1, "cliente1 não pode ser nulo");
+         Objects.requireNonNull(cliente2, "cliente2 não pode ser nulo");
+         String nome1 = Objects.requireNonNull(cliente1.getNome(), "nome do cliente1 não pode ser nulo");
+         String nome2 = Objects.requireNonNull(cliente2.getNome(), "nome do cliente2 não pode ser nulo");
+         return COLLATOR.compare(nome1, nome2);
+     }
+     ```
+   - Uso: `Sistema.listarClientesOrdenados` recebe `Comparator<Cliente>`; quando não informado, aplica `ClientePorNome` como padrão. 【F:src/main/java/br/ufvjm/barbearia/system/Sistema.java†L231-L242】 Também é passado diretamente em `Main` para ordenar listagens e relatórios operacionais. 【F:src/main/java/br/ufvjm/barbearia/system/Main.java†L323-L356】
+   - Por que é Strategy: `Comparator<Cliente>` é o contrato; políticas de ordenação são trocáveis em runtime sem alterar `Sistema` ou `Main`.
 
-     public final class RegistrarVendaCommand implements Command<Venda> {
-         private final Sistema sistema; private final Usuario solicitante; private final Venda venda;
-         public RegistrarVendaCommand(Sistema sistema, Usuario solicitante, Venda venda) { ... }
-         @Override public Venda execute() {
-             sistema.registrarVenda(solicitante, venda);
-             return venda;
+2. **ClientePorEmail** (`br.ufvjm.barbearia.compare.ClientePorEmail`)
+   - Arquivo/linhas: `src/main/java/br/ufvjm/barbearia/compare/ClientePorEmail.java`:1-26. 【F:src/main/java/br/ufvjm/barbearia/compare/ClientePorEmail.java†L1-L26】
+   - Trecho:
+     ```java
+     @Override
+     public int compare(Cliente cliente1, Cliente cliente2) {
+         Objects.requireNonNull(cliente1, "cliente1 não pode ser nulo");
+         Objects.requireNonNull(cliente2, "cliente2 não pode ser nulo");
+         Email email1 = Objects.requireNonNull(cliente1.getEmail(), "email do cliente1 não pode ser nulo");
+         Email email2 = Objects.requireNonNull(cliente2.getEmail(), "email do cliente2 não pode ser nulo");
+         return email1.getValor().compareToIgnoreCase(email2.getValor());
+     }
+     ```
+   - Uso: passado a `Sistema.listarClientesOrdenados` para alterar a ordem padrão em fluxos de apresentação e relatório operacional. 【F:src/main/java/br/ufvjm/barbearia/system/Main.java†L328-L356】 Também demonstrado em `EntregaFinalMain` com `Collections.sort`. 【F:src/main/java/br/ufvjm/barbearia/system/EntregaFinalMain.java†L431-L480】
+   - Por que é Strategy: mesma interface (`Comparator<Cliente>`), política alternativa selecionada em tempo de execução.
+
+3. **AgendamentoPorInicio** (`br.ufvjm.barbearia.compare.AgendamentoPorInicio`)
+   - Arquivo/linhas: `src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorInicio.java`:1-26. 【F:src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorInicio.java†L1-L26】
+   - Trecho:
+     ```java
+     @Override
+     public int compare(Agendamento agendamento1, Agendamento agendamento2) {
+         Objects.requireNonNull(agendamento1, "agendamento1 não pode ser nulo");
+         Objects.requireNonNull(agendamento2, "agendamento2 não pode ser nulo");
+         LocalDateTime inicio1 = Objects.requireNonNull(agendamento1.getInicio(), "início do agendamento1 não pode ser nulo");
+         LocalDateTime inicio2 = Objects.requireNonNull(agendamento2.getInicio(), "início do agendamento2 não pode ser nulo");
+         return inicio1.compareTo(inicio2);
+     }
+     ```
+   - Uso: é o comparator padrão em `Sistema.listarAgendamentosOrdenados`. 【F:src/main/java/br/ufvjm/barbearia/system/Sistema.java†L547-L558】 Chamado explicitamente em `Main` e `EntregaFinalMain` para ordenar saídas. 【F:src/main/java/br/ufvjm/barbearia/system/Main.java†L334-L356】【F:src/main/java/br/ufvjm/barbearia/system/EntregaFinalMain.java†L472-L480】
+   - Por que é Strategy: contratos comuns, políticas de ordenação intercambiáveis em runtime.
+
+4. **AgendamentoPorClienteNome** (`br.ufvjm.barbearia.compare.AgendamentoPorClienteNome`)
+   - Arquivo/linhas: `src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorClienteNome.java`:1-46. 【F:src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorClienteNome.java†L1-L46】
+   - Trecho:
+     ```java
+     @Override
+     public int compare(Agendamento agendamento1, Agendamento agendamento2) {
+         Objects.requireNonNull(agendamento1, "agendamento1 não pode ser nulo");
+         Objects.requireNonNull(agendamento2, "agendamento2 não pode ser nulo");
+         Cliente cliente1 = Objects.requireNonNull(agendamento1.getCliente(), "cliente do agendamento1 não pode ser nulo");
+         Cliente cliente2 = Objects.requireNonNull(agendamento2.getCliente(), "cliente do agendamento2 não pode ser nulo");
+         String nome1 = Objects.requireNonNull(cliente1.getNome(), "nome do cliente1 não pode ser nulo");
+         String nome2 = Objects.requireNonNull(cliente2.getNome(), "nome do cliente2 não pode ser nulo");
+         int comparacaoNome = COLLATOR.compare(nome1, nome2);
+         if (comparacaoNome != 0) {
+             return comparacaoNome;
          }
+         LocalDateTime inicio1 = Objects.requireNonNull(agendamento1.getInicio(), "início do agendamento1 não pode ser nulo");
+         LocalDateTime inicio2 = Objects.requireNonNull(agendamento2.getInicio(), "início do agendamento2 não pode ser nulo");
+         return inicio1.compareTo(inicio2);
      }
      ```
-   - **Impacto:** melhora auditabilidade, permite fila/undo futuro; complexidade **média**.
-   - **Plano incremental:** criar interface + 1 comando piloto (`RegistrarVendaCommand`), ajustar `Sistema` a usá-lo internamente, expandir para outras operações.
+   - Uso: passado a `Sistema.listarAgendamentosOrdenados` e a `Collections.sort` em execuções de demonstração. 【F:src/main/java/br/ufvjm/barbearia/system/Main.java†L341-L356】【F:src/main/java/br/ufvjm/barbearia/system/EntregaFinalMain.java†L472-L482】
+   - Por que é Strategy: alternativa ao comparator padrão, plugável em runtime.
 
-2. **Observer para eventos de negócio (venda registrada, conta fechada, cancelamento)**
-   - **Problema:** acoplamento entre operação e geração de extratos/peristência; difícil adicionar novos efeitos.
-   - **Onde aplicar:** criar `EventBus` simples em `br.ufvjm.barbearia.system` e eventos `VendaRegistrada`, `ContaFechada`, `AgendamentoCancelado` publicados em `Sistema`; handlers em `persist`/`service`.
-   - **Esqueleto:**
-     ```java
-     public interface Event {}
-     public interface EventHandler<E extends Event> { void handle(E event); }
+### 4.2 Outras oportunidades para Strategy (Propostas de extensão)
+**Cancelamento/Retenção (Proposta de extensão)**
+- Interface sugerida: `CancelamentoStrategy` com método `Dinheiro calcularRetencao(Dinheiro sinal)`.
+- Implementações: `RetencaoFixa35` (regra atual de 35%), `RetencaoPromocional` (percentual reduzido em datas especiais), `RetencaoIsenta` (isenta retenção para erros operacionais).
+- Integração: em `Sistema.cancelarAgendamento`, substituir cálculo fixo por uma estratégia recebida no construtor ou método, mantendo emissão de extrato. Benefício: flexibiliza regras sem alterar o fluxo; trade-off: mais classes e necessidade de seleção clara por contexto.
 
-     public final class SimpleEventBus {
-         private final Map<Class<?>, List<EventHandler<?>>> handlers = new ConcurrentHashMap<>();
-         public <E extends Event> void register(Class<E> type, EventHandler<E> handler) { ... }
-         public <E extends Event> void publish(E event) { ... }
-     }
-     ```
-   - **Impacto:** acoplamento menor, fácil adicionar logging/auditoria; complexidade **média**.
-   - **Plano incremental:** criar bus, publicar evento em `registrarVenda`, adicionar handler que chama `gerarExtratoVenda`.
+**Alocação de estação (Proposta de extensão)**
+- Interface sugerida: `AlocacaoEstacaoStrategy` com método `Estacao selecionar(List<Estacao> estacoes, Agendamento agendamento)`.
+- Implementações: “primeira livre”, “balanceamento” (rotações para distribuir carga), “por tipo de serviço” (adequação a serviços com lavagem obrigatória em estação 1).
+- Integração: no fluxo de criação de OS (`Sistema.realizarAgendamento`), antes de persistir, delegar à estratégia a escolha da estação disponível. Benefício: encapsula a lógica de alocação e facilita testes A/B; trade-off: precisa de dados de disponibilidade e monitoramento de carga.
 
-3. **State explícito para `Agendamento` (classes de estado)**
-   - **Problema:** regras de transição estão como condicionais; expansão pode ficar complexa.
-   - **Onde aplicar:** pacote `model.state` com classes `EmEsperaState`, `EmAtendimentoState`, `ConcluidoState`, `CanceladoState`; `Agendamento` delega operações a objeto de estado.
-   - **Esqueleto:**
-     ```java
-     interface EstadoAgendamento {
-         void avançar(Agendamento ctx);
-         void cancelar(Agendamento ctx, BigDecimal retencao);
-     }
+**Preço/Desconto (Proposta de extensão)**
+- Interface sugerida: `PrecoStrategy` com método `Dinheiro calcular(Servico servico, Cliente cliente, ContextoPreco ctx)`.
+- Implementações: preço base, promoção por período, fidelidade por histórico de visitas.
+- Integração: no cálculo de contas e vendas (`ContaAtendimento`, `Venda`), aplicar a estratégia antes de somar itens. Benefício: evita condicionais; trade-off: requer parametrização clara e consistência com extratos.
 
-     final class EmEsperaState implements EstadoAgendamento {
-         public void avançar(Agendamento ctx) { ctx.setEstado(new EmAtendimentoState()); }
-         public void cancelar(Agendamento ctx, BigDecimal retencao) { ctx.registrarCancelamento(retencao); ctx.setEstado(new CanceladoState()); }
-     }
-     ```
-   - **Impacto:** facilita adicionar regras/efeitos por estado; complexidade **média**.
-   - **Plano incremental:** introduzir interface de estado + conversor simples, migrar validações, testar transições.
+### (a) Descrição detalhada do padrão Strategy
+Strategy encapsula variações de algoritmo atrás de um contrato comum, permitindo escolher a política em tempo de execução. Ele atende ao Open/Closed Principle porque novas políticas são adicionadas como novas classes sem modificar o contexto. Também reduz condicionais longas, pois a escolha se desloca para a instanciação/injeção da estratégia.
 
-4. **DAO mais granular com interface**
-   - **Problema:** `JsonStorage` é utilitário monolítico; difícil trocar persistência ou testar.
-   - **Onde aplicar:** criar `SnapshotRepository` (interface) e implementação `JsonSnapshotRepository` em `persist`; `Sistema` depende da interface.
-   - **Esqueleto:**
-     ```java
-     public interface SnapshotRepository {
-         void save(DataSnapshot snapshot, Path destino) throws IOException;
-         DataSnapshot load(Path origem) throws IOException;
-     }
+### (c) Descrição textual do diagrama de classes (sem TikZ)
+**Contexto existente**
+- Contexto: `Sistema` — oferece métodos de listagem/ordenação que recebem uma estratégia (`Comparator`) e aplicam sobre coleções internas de clientes e agendamentos. Usa `ordenarERecortar` para aplicar a política.
+- Associações: `Sistema` —usa→ `Comparator<Cliente>`; `Sistema` —usa→ `Comparator<Agendamento>`.
 
-     public final class JsonSnapshotRepository implements SnapshotRepository {
-         @Override public void save(DataSnapshot snapshot, Path destino) throws IOException { JsonStorage.save(snapshot, destino); }
-         @Override public DataSnapshot load(Path origem) throws IOException { return JsonStorage.load(origem); }
-     }
-     ```
-   - **Impacto:** facilita mocks e múltiplas implementações (SQL, REST); complexidade **baixa/média**.
+**Strategy (contrato)**
+- Interface: `Comparator<T>`.
+- Operação: `int compare(T a, T b)`.
 
-## Tabela Benefício vs Complexidade
-| Padrão | Benefício p/ o projeto | Complexidade | Locais propostos | Observações |
-| --- | --- | --- | --- | --- |
-| Command | Alta: auditar/encadear operações críticas | Média | `system` (novos comandos) | Prepara para undo/logging. |
-| Observer | Média/Alta: desacoplamento de efeitos (extratos/persistência) | Média | `system` (EventBus), `persist` (handlers) | Evita chamadas diretas a IO. |
-| State (classes) | Média: clareza das regras de status | Média | `model` (`Agendamento`) | Útil se regras crescerem. |
-| DAO interface | Média: testabilidade e troca de storage | Baixa/Média | `persist` (`SnapshotRepository`) | Passo natural para camadas limp as. |
+**Concrete Strategies**
+- `ClientePorNome` — implementa `Comparator<Cliente>` (critério: nome, com `Collator`).
+- `ClientePorEmail` — implementa `Comparator<Cliente>` (critério: e-mail).
+- `AgendamentoPorInicio` — implementa `Comparator<Agendamento>` (critério: início).
+- `AgendamentoPorClienteNome` — implementa `Comparator<Agendamento>` (critério: nome do cliente, desempate por início).
 
-## Passos de Adoção Recomendados (Backlog)
-- **P0 (imediato):**
-  - Introduzir `SnapshotRepository` e adaptar `Sistema.saveAll/loadAll` a usar a interface.
-  - Criar `Command` base e mover `registrarVenda` para `RegistrarVendaCommand`.
-- **P1 (curto prazo):**
-  - Implementar `SimpleEventBus` com handler de extrato de venda; publicar em `registrarVenda` e `fecharContaAtendimento`.
-  - Adicionar testes unitários para comandos e evento de venda.
-- **P2 (médio prazo):**
-  - Evoluir `Agendamento` para state pattern explícito; migrar validações.
-  - Avaliar cadeias de validação (Chain of Responsibility) para autorização/políticas de cancelamento.
+**Colaborações (passo a passo)**
+1. `Sistema` recebe um `Comparator<T>` como parâmetro em métodos de ordenação ou relatório operacional.
+2. `Sistema` invoca `lista.sort(comparator)` ou `Collections.sort(lista, comparator)` dentro de `ordenarERecortar` ou em clientes como `Main`/`EntregaFinalMain`.
+3. O comparator concreto define a política de ordenação aplicada.
+4. O resultado ordenado é retornado ou impresso.
 
-## Conclusão
-O projeto já utiliza **Strategy** (comparators), **Adapter** (Gson TypeAdapters), **Builder** (DataSnapshot) e **Factory Method** utilitário, além de uma forma simplificada de **State** e um DAO monolítico para snapshots. Adoções futuras mais valiosas são **Command** e **Observer** para desacoplar operações críticas, um **DAO** com interface para testabilidade e uma evolução do **State** em `Agendamento` para acomodar regras crescentes, evitando over-engineering nos demais padrões.
+**Observações de navegabilidade/multiplicidade**
+- `Sistema` depende de múltiplos `Comparator<T>` (1..*) para clientes e agendamentos.
+- Cada `ConcreteStrategy` implementa `Comparator<T>` e é conhecida apenas pelo contrato.
+- `Sistema` não conhece detalhes internos das estratégias, mantendo baixo acoplamento.
+
+**Propostas de extensão (mesmo formato textual)**
+- `CancelamentoStrategy`: contexto `Sistema.cancelarAgendamento` usa→ estratégias (`RetencaoFixa35`, `RetencaoPromocional`, `RetencaoIsenta`); seleção definiria quanto reter do sinal; multiplicidade 1..* estratégias possíveis.
+- `AlocacaoEstacaoStrategy`: contexto `Sistema.realizarAgendamento` usa→ (`PrimeiraLivre`, `Balanceamento`, `PorTipoServico`); define estação escolhida antes de salvar; múltiplas estratégias plugáveis.
+- `PrecoStrategy`: contexto `ContaAtendimento`/`Venda` usa→ (`PrecoBase`, `PrecoPromocional`, `PrecoFidelidade`); define o valor aplicado por item.
+
+### (d) Implementação em Java (real + proposta)
+- **ConcreteStrategy existente** (`ClientePorNome`):
+  ```java
+  public int compare(Cliente cliente1, Cliente cliente2) {
+      Objects.requireNonNull(cliente1, "cliente1 não pode ser nulo");
+      Objects.requireNonNull(cliente2, "cliente2 não pode ser nulo");
+      String nome1 = Objects.requireNonNull(cliente1.getNome(), "nome do cliente1 não pode ser nulo");
+      String nome2 = Objects.requireNonNull(cliente2.getNome(), "nome do cliente2 não pode ser nulo");
+      return COLLATOR.compare(nome1, nome2);
+  }
+  ```
+  【F:src/main/java/br/ufvjm/barbearia/compare/ClientePorNome.java†L21-L28】
+
+- **Contexto aplicando a estratégia** (`Sistema`):
+  ```java
+  public List<Cliente> listarClientesOrdenados(Comparator<Cliente> comparator, int offset, int limit) {
+      Comparator<Cliente> criterio = comparator != null ? comparator : DEFAULT_CLIENTE_COMPARATOR;
+      return ordenarERecortar(clientes, criterio, offset, limit);
+  }
+  ```
+  【F:src/main/java/br/ufvjm/barbearia/system/Sistema.java†L239-L242】
+
+- **Uso externo demonstrando troca em runtime** (`Main`):
+  ```java
+  sistema.listarClientesOrdenados(new ClientePorNome(), 0, 2);
+  sistema.listarClientesOrdenados(new ClientePorEmail(), 1, 2);
+  sistema.listarAgendamentosOrdenados(new AgendamentoPorInicio(), 0, 3);
+  sistema.listarAgendamentosOrdenados(new AgendamentoPorClienteNome(), 1, 2);
+  ```
+  【F:src/main/java/br/ufvjm/barbearia/system/Main.java†L323-L344】
+
+- **Proposta de extensão (esqueleto mínimo)**
+  ```java
+  // Proposta de extensão
+  interface CancelamentoStrategy {
+      Dinheiro calcularRetencao(Dinheiro sinal);
+  }
+  class RetencaoFixa35 implements CancelamentoStrategy {
+      public Dinheiro calcularRetencao(Dinheiro sinal) { return sinal.multiplicar(new BigDecimal("0.35")); }
+  }
+  class RetencaoIsenta implements CancelamentoStrategy {
+      public Dinheiro calcularRetencao(Dinheiro sinal) { return Dinheiro.of(BigDecimal.ZERO, sinal.getMoeda()); }
+  }
+  // Integração sugerida: injetar CancelamentoStrategy em Sistema.cancelarAgendamento
+  ```
+
+### (e) Vantagens e Desvantagens
+**Vantagens**
+- Aderência ao Open/Closed Principle: novas políticas de ordenação ou negócio são adicionadas sem alterar `Sistema`.
+- Testabilidade: cada estratégia pode ser testada isoladamente.
+- Reutilização e plugabilidade: o mesmo comparator é reutilizado em relatórios, buscas (`Sistema.find`) e apresentações.
+- Redução de condicionais: evita `if/switch` com seleção explícita de critérios.
+- Clareza de responsabilidade: regras variáveis ficam concentradas em classes pequenas e nomeadas.
+
+**Desvantagens**
+- Aumento de classes: cada variação gera um novo tipo.
+- Custo de orquestração/seleção: é preciso decidir e passar a estratégia correta em cada uso.
+- Risco de microestratégias redundantes: políticas muito específicas podem proliferar sem padronização.
+- Necessidade de convenção de nomes e pacotes para manter encontrabilidade.
+
+### (f) Conclusão — Padrão ou antipadrão neste contexto?
+Strategy é adequado ao projeto: os `Comparator<T>` existentes já cumprem o padrão, permitindo múltiplas políticas de ordenação plugáveis em `Sistema`, `Main` e `EntregaFinalMain`. As propostas (cancelamento, alocação, preço) expandem o benefício ao encapsular variações de negócio sem alterar fluxos centrais. Não usar Strategy quando não há variação prevista, a regra é estável por longo período ou a complexidade adicional não se justifica.
+
+### Referências internas ao código (Evidências)
+| Classe/Arquivo | Método | Linhas (aprox.) | Observação |
+| --- | --- | --- | --- |
+| `ClientePorNome` | `compare` | 21-28 | Ordenação por nome. 【F:src/main/java/br/ufvjm/barbearia/compare/ClientePorNome.java†L21-L28】 |
+| `ClientePorEmail` | `compare` | 13-20 | Ordenação por e-mail. 【F:src/main/java/br/ufvjm/barbearia/compare/ClientePorEmail.java†L13-L20】 |
+| `AgendamentoPorInicio` | `compare` | 13-19 | Ordenação por início. 【F:src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorInicio.java†L13-L19】 |
+| `AgendamentoPorClienteNome` | `compare` | 23-39 | Ordenação por nome do cliente; desempate por início. 【F:src/main/java/br/ufvjm/barbearia/compare/AgendamentoPorClienteNome.java†L23-L39】 |
+| `Sistema` | `listarClientesOrdenados` | 231-242 | Recebe `Comparator<Cliente>` e aplica em tempo de execução. 【F:src/main/java/br/ufvjm/barbearia/system/Sistema.java†L231-L242】 |
+| `Sistema` | `listarAgendamentosOrdenados` | 547-558 | Recebe `Comparator<Agendamento>` e aplica em tempo de execução. 【F:src/main/java/br/ufvjm/barbearia/system/Sistema.java†L547-L558】 |
+| `Main` | Uso de comparators | 323-356 | Seleção manual de estratégias em runtime para clientes/agendamentos. 【F:src/main/java/br/ufvjm/barbearia/system/Main.java†L323-L356】 |
+| `EntregaFinalMain` | Uso de comparators | 431-482 | Demonstra troca de estratégias com `Collections.sort`. 【F:src/main/java/br/ufvjm/barbearia/system/EntregaFinalMain.java†L431-L482】 |
+
+### Apêndice A — Guia rápido de uso do Strategy existente
+- Ordenar clientes por nome (padrão): `sistema.listarClientesOrdenados(new ClientePorNome(), 0, n);`
+- Ordenar clientes por e-mail: `sistema.listarClientesOrdenados(new ClientePorEmail(), offset, limit);`
+- Ordenar agendamentos por início: `sistema.listarAgendamentosOrdenados(new AgendamentoPorInicio(), 0, n);`
+- Ordenar agendamentos por nome do cliente: `sistema.listarAgendamentosOrdenados(new AgendamentoPorClienteNome(), offset, limit);`
+
+### Apêndice B — Propostas de Strategy (se aplicável)
+- **CancelamentoStrategy**: `RetencaoFixa35`, `RetencaoPromocional`, `RetencaoIsenta`; integrar em `Sistema.cancelarAgendamento`.
+- **AlocacaoEstacaoStrategy**: `PrimeiraLivre`, `Balanceamento`, `PorTipoServico`; integrar em `Sistema.realizarAgendamento` antes de persistir.
+- **PrecoStrategy**: `PrecoBase`, `PrecoPromocional`, `PrecoFidelidade`; integrar em cálculo de `ContaAtendimento` e `Venda`.
