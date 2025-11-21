@@ -120,7 +120,8 @@ public final class Main {
         sistema.cadastrarUsuario(administrador, barbeiro);
         System.out.printf("Administrador autenticado: %s (%s)%n", administrador.getNome(), administrador.getPapel());
 
-        Cliente cliente = new Cliente(
+        // -- Clientes de demonstração (10) --
+        Cliente cliente1 = new Cliente(
                 UUID.randomUUID(),
                 "Gustavo Poncell",
                 enderecoBase,
@@ -129,7 +130,7 @@ public final class Main {
                 CpfHash.fromMasked("123.456.789-09"),
                 true
         );
-        Cliente clienteAna = new Cliente(
+        Cliente cliente2 = new Cliente(
                 UUID.randomUUID(),
                 "Ana Silveira",
                 enderecoBase,
@@ -138,7 +139,7 @@ public final class Main {
                 CpfHash.fromMasked("321.654.987-00"),
                 true
         );
-        Cliente clienteBruno = new Cliente(
+        Cliente cliente3 = new Cliente(
                 UUID.randomUUID(),
                 "Bruno Alencar",
                 enderecoBase,
@@ -147,9 +148,83 @@ public final class Main {
                 CpfHash.fromMasked("987.654.321-00"),
                 true
         );
-        sistema.cadastrarCliente(cliente);
-        sistema.cadastrarCliente(clienteAna);
-        sistema.cadastrarCliente(clienteBruno);
+        Cliente cliente4 = new Cliente(
+                UUID.randomUUID(),
+                "Carla Mendes",
+                enderecoBase,
+                Telefone.of("38 97555-3030"),
+                Email.of("carla.mendes@email.com"),
+                CpfHash.fromMasked("111.222.333-44"),
+                true
+        );
+        Cliente cliente5 = new Cliente(
+                UUID.randomUUID(),
+                "Diego Rocha",
+                enderecoBase,
+                Telefone.of("38 97444-4040"),
+                Email.of("diego.rocha@email.com"),
+                CpfHash.fromMasked("222.333.444-55"),
+                true
+        );
+        Cliente cliente6 = new Cliente(
+                UUID.randomUUID(),
+                "Elisa Santos",
+                enderecoBase,
+                Telefone.of("38 97333-5050"),
+                Email.of("elisa.santos@email.com"),
+                CpfHash.fromMasked("333.444.555-66"),
+                true
+        );
+        Cliente cliente7 = new Cliente(
+                UUID.randomUUID(),
+                "Felipe Azevedo",
+                enderecoBase,
+                Telefone.of("38 97222-6060"),
+                Email.of("felipe.azevedo@email.com"),
+                CpfHash.fromMasked("444.555.666-77"),
+                true
+        );
+        Cliente cliente8 = new Cliente(
+                UUID.randomUUID(),
+                "Helena Costa",
+                enderecoBase,
+                Telefone.of("38 97111-7070"),
+                Email.of("helena.costa@email.com"),
+                CpfHash.fromMasked("555.666.777-88"),
+                true
+        );
+        Cliente cliente9 = new Cliente(
+                UUID.randomUUID(),
+                "Igor Martins",
+                enderecoBase,
+                Telefone.of("38 97000-8080"),
+                Email.of("igor.martins@email.com"),
+                CpfHash.fromMasked("666.777.888-99"),
+                true
+        );
+        Cliente cliente10 = new Cliente(
+                UUID.randomUUID(),
+                "Julia Ferreira",
+                enderecoBase,
+                Telefone.of("38 96999-9090"),
+                Email.of("julia.ferreira@email.com"),
+                CpfHash.fromMasked("777.888.999-00"),
+                true
+        );
+
+        // Cadastro no sistema (mesma API que já existe)
+        sistema.cadastrarCliente(cliente1);
+        sistema.cadastrarCliente(cliente2);
+        sistema.cadastrarCliente(cliente3);
+        sistema.cadastrarCliente(cliente4);
+        sistema.cadastrarCliente(cliente5);
+        sistema.cadastrarCliente(cliente6);
+        sistema.cadastrarCliente(cliente7);
+        sistema.cadastrarCliente(cliente8);
+        sistema.cadastrarCliente(cliente9);
+        sistema.cadastrarCliente(cliente10);
+
+        // Log
         System.out.printf("Clientes cadastrados: %d%n", sistema.listarClientesOrdenados().size());
 
         Servico corte = new Servico(
