@@ -212,6 +212,11 @@ public final class Main {
                 true
         );
 
+        // Aliases para manter compatibilidade com o restante do roteiro:
+        Cliente cliente = cliente1;        // era "Gustavo Poncell"
+        Cliente clienteAna = cliente2;     // era "Ana Silveira"
+        Cliente clienteBruno = cliente3;   // era "Bruno Alencar"
+
         // Cadastro no sistema (mesma API que já existe)
         sistema.cadastrarCliente(cliente1);
         sistema.cadastrarCliente(cliente2);
